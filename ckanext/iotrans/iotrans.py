@@ -38,11 +38,17 @@ def to_file(context, data_dict):
     # TODO - function to delete temp directory once we dont need it
 
     # all the outputs of this action will be stored here
-    output = []
+    output = {}
 
     # Make sure a resource id is provided
     if not data_dict.get("resource_id", None):
         raise tk.ValidationError( {"constraints": [ "Input CKAN Resource ID required!" ]} )
+
+    if not isinstance( data_dict.get("target_formats", None), list):
+        raise tk.ValidationError( {"constraints": [ "Input target_formats required and must be a list of strings" ]} )
+
+    if not isinstance( data_dict.get("target_epsgs", None), list):
+        raise tk.ValidationError( {"constraints": [ "Input target_epsgs required and must be a list of epsg codes as integers" ]} )
 
     # Make sure the resource id provided is for a datastore 
     if tk.get_action("resource_show")(context, {"id": data_dict["resource_id"]}).get("datastore_active", None) in ["false", "False", False] :
@@ -79,11 +85,11 @@ def to_file(context, data_dict):
                 # if the format+epsg combo match the dump, add dump to the output
                 if target_format.lower() == "csv" and target_epsg == data_dict["source_epsg"]:
                     # dump is added as an io.BytesIO object
-                    output = append_to_output(output, target_format, target_epsg, output_filepath)
+                    output = append_to_output(output, target_format, target_epsg, dump_filepath)
 
                 # if format matches the dump but epsg doesnt, convert the dump and add it to output
                 elif target_format.lower() == "csv" and target_epsg != data_dict["source_epsg"]:
-                    output_filepath = create_filepath(dir_path, data_dict["resource_id"], data_dict["target_epsg"], "csv")
+                    output_filepath = create_filepath(dir_path, data_dict["resource_id"], target_epsg, "csv")
                     write_to_csv(output_filepath, fieldnames,  transform_dump_epsg(dump_filepath, fieldnames, data_dict["source_epsg"], target_epsg) )
                     output = append_to_output(output, target_format, target_epsg, output_filepath)
 
@@ -172,8 +178,10 @@ def transform_dump_epsg( dump_filepath, fieldnames, source_epsg, target_epsg ):
     # generator yields dump rows in a different epsg than the source
     with open(dump_filepath, "r") as file:
         dictreader = csv.DictReader( file, fieldnames=fieldnames )
-        for row in dictreader:
+        # skip header
+        next(dictreader)
         
+        for row in dictreader:
             row["geometry"] = transform_geom( from_epsg(source_epsg), from_epsg(target_epsg), json.loads(row["geometry"]) )
             row["geometry"]["coordinates"] = list(row["geometry"]["coordinates"])
 
@@ -202,7 +210,7 @@ def create_filepath(dir_path, resource_id, epsg, format):
     return os.path.join(dir_path, "{0}.{1}".format( epsg, format.lower()))
 
 def append_to_output(output, target_format, target_epsg, output_filepath):
-    output[ target_format+"-"+target_epsg ] = output_filepath # io.BytesIO( open(output_filepath, "rb").read() )
+    output[ str(target_format)+"-"+str(target_epsg) ] = output_filepath # io.BytesIO( open(output_filepath, "rb").read() )
     return output
 
 def write_to_csv(dump_filepath, fieldnames, rows_generator):
