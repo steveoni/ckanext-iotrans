@@ -101,13 +101,13 @@ def to_file(context, data_dict):
                     # get Point, Line, or Polygon from the first row of our data. !!! This code assumes all geometries in the dataset are the same type
                     geometry_type = json.loads(datastore_resource["records"][0]["geometry"])["type"]
                     # get all the field data types (other than geometry) and map them to fiona data types
-                    fields_metadata = { field["id"]: ckan_to_fiona_typemap[''.join( [char for char in field["type"] if not char.isdigit()] )]  for field in datastore_resource["result"]["fields"] if field["id"] != "geometry"  }
+                    fields_metadata = { field["id"]: ckan_to_fiona_typemap[''.join( [char for char in field["type"] if not char.isdigit()] )]  for field in datastore_resource["fields"] if field["id"] != "geometry"  }
                     schema = { 'geometry': geometry_type, 'properties': fields_metadata }
                     output_filepath = create_filepath(dir_path, data_dict["resource_id"], target_epsg, target_format)
                     
 
                     with fiona.open(output_filepath, 'w', schema=schema, driver=drivers[target_format], crs=from_epsg(target_epsg)) as outlayer:
-                        outlayer.writerecords( dump_to_geospatial_generator(dump_filepath, target_format, data_dict["source_epsg"], target_epsg) )
+                        outlayer.writerecords( dump_to_geospatial_generator(dump_filepath, fieldnames, target_format, data_dict["source_epsg"], target_epsg) )
                         outlayer.close()
                     
                     output = append_to_output(output, target_format, target_epsg, output_filepath)
@@ -154,25 +154,29 @@ def dump_generator(dump_url):
                 f.flush()
 
 
-def dump_to_geospatial_generator(dump_filepath, target_format, source_epsg = 4326, target_epsg=4326):
+def dump_to_geospatial_generator(dump_filepath, fieldnames, target_format, source_epsg = 4326, target_epsg=4326):
 
     with open(dump_filepath, "r") as f: 
         reader = csv.DictReader(f, fieldnames=fieldnames)
-        row = next(reader)
+        next(reader)
+        for row in reader:
 
 
-        # if the data contains a "geometry" column, we know its spatial
-        if "geometry" in row.keys():
-            geometry = row.pop("geometry")
-            
-            # if we need to transform the EPSG, we do it here 
-            if target_epsg != source_epsg:
-                geometry = transform_geom( from_epsg(4326), from_epsg(2952), json.loads( geometry ) )
-                geometry["coordinates"] = list(geometry["coordinates"])
+            # if the data contains a "geometry" column, we know its spatial
+            if "geometry" in row.keys():
+                geometry = row.pop("geometry")
 
-            output = { "type": "Feature", "properties": dict(row), "geometry": json.loads( geometry ) }  
+                # if we need to transform the EPSG, we do it here 
+                if target_epsg != source_epsg:
+                    geometry = transform_geom( from_epsg(source_epsg), from_epsg(target_epsg), json.loads( geometry ) )
+                    geometry["coordinates"] = list(geometry["coordinates"])
 
-            yield(output)
+                    output = { "type": "Feature", "properties": dict(row), "geometry":  geometry }  
+                
+                else:
+                    output = { "type": "Feature", "properties": dict(row), "geometry": json.loads( geometry ) }  
+
+                yield(output)
 
 def transform_dump_epsg( dump_filepath, fieldnames, source_epsg, target_epsg ):
     # generator yields dump rows in a different epsg than the source
@@ -180,7 +184,7 @@ def transform_dump_epsg( dump_filepath, fieldnames, source_epsg, target_epsg ):
         dictreader = csv.DictReader( file, fieldnames=fieldnames )
         # skip header
         next(dictreader)
-        
+
         for row in dictreader:
             row["geometry"] = transform_geom( from_epsg(source_epsg), from_epsg(target_epsg), json.loads(row["geometry"]) )
             row["geometry"]["coordinates"] = list(row["geometry"]["coordinates"])
