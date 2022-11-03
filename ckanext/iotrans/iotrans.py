@@ -11,6 +11,7 @@
 # TODO:
 # prune() as a CKAN action
 # write_to_filestore to add each filepath as a filestore object to the input resource_id's resource
+# make this an authenticated api call
 
 
 # assumes geometry column in dataset contains geometry
@@ -19,6 +20,13 @@
 import ckan.plugins.toolkit as tk
 import tempfile
 import os
+import io
+import csv
+import json
+import fiona
+from fiona.crs import from_epsg
+from fiona.transform import transform_geom
+import httpx
 
 
 @tk.side_effect_free
@@ -33,17 +41,22 @@ def to_file(context, data_dict):
     output = []
 
     # Make sure a resource id is provided
-    assert resource_id, "Input CKAN Resource ID required!"
-    # Make sure the resource id provided is for a datastore resource
+    if not data_dict.get("resource_id", None):
+        raise tk.ValidationError( {"constraints": [ "Input CKAN Resource ID required!" ]} )
+
+    # Make sure the resource id provided is for a datastore 
+    if tk.get_action("resource_show")(context, {"id": data_dict["resource_id"]}).get("datastore_active", None) in ["false", "False", False] :
+        raise tk.ValidationError( {"constraints": [ data_dict["resource_id"] + " is not a datastore resource!" ]} )
+    
     datastore_resource = tk.get_action("datastore_search")(context, {"resource_id": data_dict["resource_id"]})
-    assert datastore_resource["success"], data_dict["resource_id"] + " is not a datastore resource!"
+    
 
     # get fieldnames for the resource
     fieldnames = [ field["id"] for field in datastore_resource["fields"] ]
     dump_url = "http://0.0.0.0:8080/datastore/dump/" + data_dict["resource_id"]
     
     # create filepath for temp working file - this CSV will be used for all outputs going forward
-    dump_filepath = create_filepath(dir_path, data_dict["resource_id"], data_dict["source_epsg"], "csv")
+    dump_filepath = create_filepath(dir_path, data_dict["resource_id"], data_dict.get("source_epsg", None), "csv")
     write_to_csv(dump_filepath, fieldnames, dump_generator(dump_url))
 
     # Now that we have our dump on the disk, let's figure out what to do with it
@@ -98,7 +111,7 @@ def to_file(context, data_dict):
     elif "geometry" not in fieldnames:
         pass
                     
-
+    return output
 
 
 def dump_generator(dump_url):
