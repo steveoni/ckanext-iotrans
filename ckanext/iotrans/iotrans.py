@@ -1,26 +1,35 @@
-# streams data from datastore dump into csv
-# from the csv, other files in other coordinate systems can be made
-# function could be a generator?? It might not be a ckan extension then ...
+# functions that support the to_file() function
+# to_file() takes as inputs:
+#   resource_id (str): resource_id for a datastore resource in CKAN
+#   source_epsg (int): epsg of the existing dataset's coordinate system
+#   target_formats (list): list of file formats desired for the output
+#   target_epsgs (list): list of epsg integers desired for the output
+
+# to_file() returns as outputs:
+#   a list of filepaths, where the outputs are stored on disk 
+
+# TODO:
+# prune() as a CKAN action
+# write_to_filestore to add each filepath as a filestore object to the input resource_id's resource
+
 
 # assumes geometry column in dataset contains geometry
 # also assumes geometry objects within a dataset are all the same geometry type (all Point, all Line, or all Polygon)
 
 import ckan.plugins.toolkit as tk
-
-
-# if they want a csv of the same epsg as source_epsg, then just return the starting file!
-
-# if they want a conversion to a spatial file format, then we need to make sure we have legit spatial data
-#   and make sure the starting data has a geometry, or similar, attribute
-# if they dont care about anything geospatial, then we need to get other libraries involved
+import tempfile
+import os
 
 
 @tk.side_effect_free
 def to_file(context, data_dict):
 
-    # init important variables
-    dir_path = os.path.dirname(os.path.realpath(__file__))
+    # create a temp directory to store the file we create on disk
+    dir_path = tempfile.mkdtemp()
 
+    # TODO - function to delete temp directory once we dont need it
+
+    # all the outputs of this action will be stored here
     output = []
 
     # Make sure a resource id is provided
@@ -34,12 +43,8 @@ def to_file(context, data_dict):
     dump_url = "http://0.0.0.0:8080/datastore/dump/" + data_dict["resource_id"]
     
     # create filepath for temp working file - this CSV will be used for all outputs going forward
-    dump_filepath = dir_path + "/" + datastore_resource["resource_id"] + "-" + data_dict["source_epsg"] + ".csv"
-    with open(dump_filepath, "w") as f:
-        writer = csv.writer(f)
-        writer.writerow( fieldnames )
-        writer.writerows(dump_generator(dump_url))
-        f.close()
+    dump_filepath = create_filepath(dir_path, data_dict["resource_id"], data_dict["source_epsg"], "csv")
+    write_to_csv(dump_filepath, fieldnames, dump_generator(dump_url))
 
     # Now that we have our dump on the disk, let's figure out what to do with it
     # Let's first determine whether geometry is involved
@@ -52,45 +57,48 @@ def to_file(context, data_dict):
 
         # for each target EPSG...
         for target_epsg in data_dict["target_epsgs"]:
-            # for each target format
+            # for each target format...
             for target_format in data_dict["target_formats"]:
+
+                # init fiona driver list, which helps us determine if fiona needs to get involved
+                drivers = {"shp":"ESRI Shapefile", "geojson":"GeoJSON", "gpkg": "GPKG"}
+
                 # if the format+epsg combo match the dump, add dump to the output
                 if target_format.lower() == "csv" and target_epsg == data_dict["source_epsg"]:
                     # dump is added as an io.BytesIO object
-                    output[ target_format+"-"+target_epsg ] = io.BytesIO( open(dump_filepath, "rb").read() )
+                    output = append_to_output(output, target_format, target_epsg, output_filepath)
 
                 # if format matches the dump but epsg doesnt, convert the dump and add it to output
-                if target_format.lower() == "csv" and target_epsg != data_dict["source_epsg"]:
-                    output_filepath = dir_path + "/" + datastore_resource["resource_id"] + "-" + data_dict["source_epsg"] + ".csv"
+                elif target_format.lower() == "csv" and target_epsg != data_dict["source_epsg"]:
+                    output_filepath = create_filepath(dir_path, data_dict["resource_id"], data_dict["target_epsg"], "csv")
+                    write_to_csv(output_filepath, fieldnames,  transform_dump_epsg(dump_filepath, fieldnames, data_dict["source_epsg"], target_epsg) )
+                    output = append_to_output(output, target_format, target_epsg, output_filepath)
+
+                # if format doesnt match the dump, get fiona drivers involved
+                elif target_format.lower() in drivers.keys():
+                
+                    # first, we need to build a schema
+                    ckan_to_fiona_typemap = {"text": "str", "date":"date", "timestamp":"str", "float":"float", "int":"int"}
+                    # get Point, Line, or Polygon from the first row of our data. !!! This code assumes all geometries in the dataset are the same type
+                    geometry_type = json.loads(datastore_resource["records"][0]["geometry"])["type"]
+                    # get all the field data types (other than geometry) and map them to fiona data types
+                    fields_metadata = { field["id"]: ckan_to_fiona_typemap[''.join( [char for char in field["type"] if not char.isdigit()] )]  for field in datastore_resource["result"]["fields"] if field["id"] != "geometry"  }
+                    schema = { 'geometry': geometry_type, 'properties': fields_metadata }
+                    output_filepath = create_filepath(dir_path, data_dict["resource_id"], target_epsg, target_format)
                     
-                    with open(output_filepath, "w") as f:
-                        writer = csv.writer(f)        
-                        writer.writerows(transform_dump_epsg(dump_url, resource_id))
-                        f.close()
 
-                    output[ target_format+"-"+target_epsg ] = io.BytesIO( open(dump_filepath, "rb").read() )
+                    with fiona.open(output_filepath, 'w', schema=schema, driver=drivers[target_format], crs=from_epsg(target_epsg)) as outlayer:
+                        outlayer.writerecords( dump_to_geospatial_generator(dump_filepath, target_format, data_dict["source_epsg"], target_epsg) )
+                        outlayer.close()
+                    
+                    output = append_to_output(output, target_format, target_epsg, output_filepath)
 
-                # if format doesnt match the dump, get fiona involved
 
     # non geometric transformations
     elif "geometry" not in fieldnames:
         pass
                     
 
-
-        # this maps ckan data type names to fiona data type names
-        ckan_to_fiona_typemap = {
-            "text": "str",
-            "date":"date",
-            "timestamp":"str",
-            "float":"float",
-            "int":"int",
-        }
-
-        # this creates a schema for our output spatial files
-        geometry_type = json.loads(datastore_resource["records"][0]["geometry"])["type"]
-        fields_metadata = { field["id"]: ckan_to_fiona_typemap[''.join( [char for char in field["type"] if not char.isdigit()] )]  for field in datastore_resource["result"]["fields"] if field["id"] != "geometry"  }
-        schema = { 'geometry': geometry_type, 'properties': fields_metadata }
 
 
 def dump_generator(dump_url):
@@ -127,38 +135,69 @@ def dump_generator(dump_url):
                 f.flush()
 
 
-    def dump_to_geospatial_generator(target_format, target_epsg=4326):
+def dump_to_geospatial_generator(dump_filepath, target_format, source_epsg = 4326, target_epsg=4326):
 
-        with open(dump_filepath, "r") as f: 
-            reader = csv.DictReader(f, fieldnames=fieldnames)
-            row = next(reader)
+    with open(dump_filepath, "r") as f: 
+        reader = csv.DictReader(f, fieldnames=fieldnames)
+        row = next(reader)
 
 
-            # if the data contains a "geometry" column, we know its spatial
-            if "geometry" in row.keys():
-                geometry = row.pop("geometry")
-                
-                # if we need to transform the EPSG, we do it here 
-                if target_epsg != source_epsg:
-                    geometry = transform_geom( from_epsg(4326), from_epsg(2952), json.loads( geometry ) )
-                    geometry["coordinates"] = list(geometry["coordinates"])
-
-                output = { "type": "Feature", "properties": dict(row), "geometry": json.loads(geometry) }  
-
-                yield(output)
-
-    def transform_dump_epsg( dump_filepath, fieldnames, source_epsg, target_epsg ):
-        # generator yields dump rows in a different epsg than the source
-        with open(dump_filepath, "r") as file:
-            dictreader = csv.DictReader( file, fieldnames=fieldnames )
-            for row in dictreader:
+        # if the data contains a "geometry" column, we know its spatial
+        if "geometry" in row.keys():
+            geometry = row.pop("geometry")
             
-                row["geometry"] = transform_geom( from_epsg(source_epsg), from_epsg(target_epsg), json.loads(row["geometry"]) )
-                row["geometry"]["coordinates"] = list(row["geometry"]["coordinates"])
+            # if we need to transform the EPSG, we do it here 
+            if target_epsg != source_epsg:
+                geometry = transform_geom( from_epsg(4326), from_epsg(2952), json.loads( geometry ) )
+                geometry["coordinates"] = list(geometry["coordinates"])
 
-                output = row.values()
-                yield(output)
+            output = { "type": "Feature", "properties": dict(row), "geometry": json.loads( geometry ) }  
 
+            yield(output)
+
+def transform_dump_epsg( dump_filepath, fieldnames, source_epsg, target_epsg ):
+    # generator yields dump rows in a different epsg than the source
+    with open(dump_filepath, "r") as file:
+        dictreader = csv.DictReader( file, fieldnames=fieldnames )
+        for row in dictreader:
+        
+            row["geometry"] = transform_geom( from_epsg(source_epsg), from_epsg(target_epsg), json.loads(row["geometry"]) )
+            row["geometry"]["coordinates"] = list(row["geometry"]["coordinates"])
+
+            output = row.values()
+            yield(output)
+
+def prune(path):
+    '''
+    Taken from https://github.com/open-data-toronto/iotrans/blob/master/iotrans/utils.py
+    Deletes a file or a directory
     
+    Parameters:
+    path    (str): Path to be removed
+    '''
 
-    
+    if os.path.isdir(path):
+        # Empty the contents of the folder before removing the directory
+        for f in os.listdir(path):
+            os.remove(os.path.join(path, f))
+
+        os.rmdir(path)
+    else:
+        os.remove(path)
+
+def create_filepath(dir_path, resource_id, epsg, format):
+    return os.path.join(dir_path, "{0}.{1}".format( epsg, format.lower()))
+
+def append_to_output(output, target_format, target_epsg, output_filepath):
+    output[ target_format+"-"+target_epsg ] = output_filepath # io.BytesIO( open(output_filepath, "rb").read() )
+    return output
+
+def write_to_csv(dump_filepath, fieldnames, rows_generator):
+    with open(dump_filepath, "w") as f:
+        writer = csv.writer(f)
+        writer.writerow( fieldnames )
+        writer.writerows( rows_generator )
+        f.close()
+
+def write_to_fiona(target_format, schema):
+    pass
