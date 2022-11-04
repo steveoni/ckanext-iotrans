@@ -11,6 +11,8 @@ from fiona.crs import from_epsg
 from fiona.transform import transform_geom
 import httpx
 from . import utils
+from zipfile import ZipFile
+
 
 def dump_generator(dump_url):
     with httpx.Client() as client:

@@ -15,6 +15,8 @@ from fiona.crs import from_epsg
 from fiona.transform import transform_geom
 import httpx
 from . import utils
+from zipfile import ZipFile
+
 
 
 @tk.side_effect_free
@@ -118,6 +120,16 @@ def to_file(context, data_dict):
                     with fiona.open(output_filepath, 'w', schema=schema, driver=drivers[target_format], crs=from_epsg(target_epsg)) as outlayer:
                         outlayer.writerecords( utils.dump_to_geospatial_generator(dump_filepath, fieldnames, target_format, data_dict["source_epsg"], target_epsg) )
                         outlayer.close()
+
+                    # zip shapefile outputs together, as fiona creates many separate files
+                    if target_format.lower() == "shp":
+                        output_filepath = output_filepath.replace(".shp", ".zip")
+                        with ZipFile(output_filepath, 'w') as zipfile:
+                            shp_components = ["shp", "cpg", "dbf", "prj", "shx"]
+
+                            for file in os.listdir(dir_path):
+                                if file[-3:] in shp_components:
+                                    zipfile.write( dir_path + "/" + file )
                     
                     output = utils.append_to_output(output, target_format, target_epsg, output_filepath)
 
