@@ -17,5 +17,6 @@ class IotransPlugin(plugins.SingletonPlugin):
     def get_actions(self):
         return {
             "to_file": iotrans.to_file,
+            "prune": iotrans.prune,
         }
 

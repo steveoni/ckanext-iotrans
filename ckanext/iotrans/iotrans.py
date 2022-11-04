@@ -32,6 +32,9 @@ import httpx
 @tk.side_effect_free
 def to_file(context, data_dict):
 
+    # make sure an authorized user is making this call
+    assert context["auth_user_obj"], "This endpoint can be used by authorized accounts only"
+
     # create a temp directory to store the file we create on disk
     dir_path = tempfile.mkdtemp()
 
@@ -233,7 +236,8 @@ def transform_dump_epsg( dump_filepath, fieldnames, source_epsg, target_epsg ):
 
         f.close()
 
-def prune(path):
+@tk.side_effect_free
+def prune(context, data_dict):
     '''
     Taken from https://github.com/open-data-toronto/iotrans/blob/master/iotrans/utils.py
     Deletes a file or a directory
@@ -241,6 +245,19 @@ def prune(path):
     Parameters:
     path    (str): Path to be removed
     '''
+
+    # make sure an authorized user is making this call
+    assert context["auth_user_obj"], "This endpoint can be used by authorized accounts only"
+
+    if not data_dict.get("path", None):
+        raise tk.ValidationError( {"constraints": [ "Input path of dir to delete required!" ]} )
+
+    path = data_dict["path"]
+
+    if not data_dict.get("path", None).startswith("/tmp/"):
+        raise tk.ValidationError( {"constraints": [ "This action is only meant for deleting folders in the /tmp/ directory" ]} )
+
+
 
     if os.path.isdir(path):
         # Empty the contents of the folder before removing the directory
