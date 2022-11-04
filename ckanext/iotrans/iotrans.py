@@ -47,11 +47,12 @@ def to_file(context, data_dict):
     if not isinstance( data_dict.get("target_formats", None), list):
         raise tk.ValidationError( {"constraints": [ "Input target_formats required and must be a list of strings" ]} )
 
-    if not isinstance( data_dict.get("target_epsgs", None), list):
-        raise tk.ValidationError( {"constraints": [ "Input target_epsgs required and must be a list of epsg codes as integers" ]} )
+    #if not isinstance( data_dict.get("target_epsgs", None), list):
+    #    raise tk.ValidationError( {"constraints": [ "Input target_epsgs required and must be a list of epsg codes as integers" ]} )
 
     # Make sure the resource id provided is for a datastore 
-    if tk.get_action("resource_show")(context, {"id": data_dict["resource_id"]}).get("datastore_active", None) in ["false", "False", False] :
+    resource_metadata = tk.get_action("resource_show")(context, {"id": data_dict["resource_id"]})
+    if resource_metadata.get("datastore_active", None) in ["false", "False", False] :
         raise tk.ValidationError( {"constraints": [ data_dict["resource_id"] + " is not a datastore resource!" ]} )
     
     datastore_resource = tk.get_action("datastore_search")(context, {"resource_id": data_dict["resource_id"]})
@@ -62,7 +63,7 @@ def to_file(context, data_dict):
     dump_url = "http://0.0.0.0:8080/datastore/dump/" + data_dict["resource_id"]
     
     # create filepath for temp working file - this CSV will be used for all outputs going forward
-    dump_filepath = create_filepath(dir_path, data_dict["resource_id"], data_dict.get("source_epsg", None), "csv")
+    dump_filepath = create_filepath(dir_path, resource_metadata["name"], data_dict.get("source_epsg", None), "csv")
     write_to_csv(dump_filepath, fieldnames, dump_generator(dump_url))
 
     # Now that we have our dump on the disk, let's figure out what to do with it
@@ -70,7 +71,7 @@ def to_file(context, data_dict):
 
     # geometric transformations
     if "geometry" in fieldnames:
-        if not isinstance(data_dict["target_epsgs"], list):
+        if not isinstance(data_dict.get("target_epsgs", None), list):
             data_dict["target_epsgs"] = list(data_dict["target_epsgs"])
             data_dict["target_formats"] = list(data_dict["target_formats"])
 
@@ -84,12 +85,11 @@ def to_file(context, data_dict):
 
                 # if the format+epsg combo match the dump, add dump to the output
                 if target_format.lower() == "csv" and target_epsg == data_dict["source_epsg"]:
-                    # dump is added as an io.BytesIO object
                     output = append_to_output(output, target_format, target_epsg, dump_filepath)
 
                 # if format matches the dump but epsg doesnt, convert the dump and add it to output
                 elif target_format.lower() == "csv" and target_epsg != data_dict["source_epsg"]:
-                    output_filepath = create_filepath(dir_path, data_dict["resource_id"], target_epsg, "csv")
+                    output_filepath = create_filepath(dir_path, resource_metadata["name"], target_epsg, "csv")
                     write_to_csv(output_filepath, fieldnames,  transform_dump_epsg(dump_filepath, fieldnames, data_dict["source_epsg"], target_epsg) )
                     output = append_to_output(output, target_format, target_epsg, output_filepath)
 
@@ -103,7 +103,7 @@ def to_file(context, data_dict):
                     # get all the field data types (other than geometry) and map them to fiona data types
                     fields_metadata = { field["id"]: ckan_to_fiona_typemap[''.join( [char for char in field["type"] if not char.isdigit()] )]  for field in datastore_resource["fields"] if field["id"] != "geometry"  }
                     schema = { 'geometry': geometry_type, 'properties': fields_metadata }
-                    output_filepath = create_filepath(dir_path, data_dict["resource_id"], target_epsg, target_format)
+                    output_filepath = create_filepath(dir_path, resource_metadata["name"], target_epsg, target_format)
                     
 
                     with fiona.open(output_filepath, 'w', schema=schema, driver=drivers[target_format], crs=from_epsg(target_epsg)) as outlayer:
@@ -115,7 +115,45 @@ def to_file(context, data_dict):
 
     # non geometric transformations
     elif "geometry" not in fieldnames:
-        pass
+        # for each target format...
+        for target_format in data_dict["target_formats"]:
+            output_filepath = create_filepath(dir_path, resource_metadata["name"], None, target_format) 
+        
+            # CSV
+            if target_format.lower() == "csv":
+                output = append_to_output(output, target_format, None, dump_filepath)
+
+            # JSON
+            elif target_format.lower() == "json":
+                with open(dump_filepath, "r") as csvfile:
+                    dictreader = csv.DictReader(csvfile)
+                    with open(output_filepath, "a") as jsonfile:
+                        jsonfile.write("[")
+                        for row in dictreader:
+                            jsonfile.write( json.dumps(row) )
+                        jsonfile.write("]")
+                output = append_to_output(output, target_format, None, output_filepath)
+
+            # XML
+            elif target_format.lower() == "xml":
+                with open(dump_filepath, "r") as csvfile:
+                    dictreader = csv.DictReader(csvfile)
+                    with open(output_filepath, "a") as xmlfile:
+                        xmlfile.write('<?xml version="1.0" encoding="utf-8"?>')
+                        xmlfile.write('<DATA>')
+                        i = 0
+                        for row in dictreader:
+                            xml_row = '<ROW count="{}">'.format( str(i) )
+                            for key, value in row.items():
+                                xml_row += "<{key}>{value}</{key}>".format( key=key, value=value )
+                                xmlfile.write( xml_row )
+                                xmlfile.write("</ROW>")
+                            i += 1
+                        xmlfile.write('</DATA>')
+
+                output = append_to_output(output, target_format, None, output_filepath)
+
+
                     
     return output
 
@@ -177,11 +215,12 @@ def dump_to_geospatial_generator(dump_filepath, fieldnames, target_format, sourc
                     output = { "type": "Feature", "properties": dict(row), "geometry": json.loads( geometry ) }  
 
                 yield(output)
+        f.close()
 
 def transform_dump_epsg( dump_filepath, fieldnames, source_epsg, target_epsg ):
     # generator yields dump rows in a different epsg than the source
-    with open(dump_filepath, "r") as file:
-        dictreader = csv.DictReader( file, fieldnames=fieldnames )
+    with open(dump_filepath, "r") as f:
+        dictreader = csv.DictReader( f, fieldnames=fieldnames )
         # skip header
         next(dictreader)
 
@@ -191,6 +230,8 @@ def transform_dump_epsg( dump_filepath, fieldnames, source_epsg, target_epsg ):
 
             output = row.values()
             yield(output)
+
+        f.close()
 
 def prune(path):
     '''
@@ -210,8 +251,9 @@ def prune(path):
     else:
         os.remove(path)
 
-def create_filepath(dir_path, resource_id, epsg, format):
-    return os.path.join(dir_path, "{0}.{1}".format( epsg, format.lower()))
+def create_filepath(dir_path, resource_name, epsg, format):
+    epsg_suffix = " - " + str(epsg) if epsg else ""
+    return os.path.join(dir_path, "{0}{1}.{2}".format( resource_name, epsg_suffix, format.lower()))
 
 def append_to_output(output, target_format, target_epsg, output_filepath):
     output[ str(target_format)+"-"+str(target_epsg) ] = output_filepath # io.BytesIO( open(output_filepath, "rb").read() )
