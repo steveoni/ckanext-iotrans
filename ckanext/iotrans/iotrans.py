@@ -106,7 +106,7 @@ def to_file(context, data_dict):
 
                 # if format doesnt match the dump, get fiona drivers involved
                 elif target_format.lower() in drivers.keys():
-                
+
                     # first, we need to build a schema
                     ckan_to_fiona_typemap = {"text": "str", "date":"date", "timestamp":"str", "float":"float", "int":"int"}
                     # get Point, Line, or Polygon from the first row of our data. !!! This code assumes all geometries in the dataset are the same type
@@ -123,13 +123,26 @@ def to_file(context, data_dict):
 
                     # zip shapefile outputs together, as fiona creates many separate files
                     if target_format.lower() == "shp":
+                        # if a field has >10 characters, shapefiles replace all fieldnames with SHAPE_#
+                        # we will map the field names to their SHAPE_# name
+                        if any([len(name)>10 for name in fieldnames]):
+                            fields_filepath = dir_path + "/" + resource_metadata["name"] + " fields.csv"
+                            with open( fields_filepath, "w" ) as fields_file:
+                                i = 1
+                                writer = csv.DictWriter(fields_file, fieldnames = ["field", "name"])
+                                writer.writeheader()
+                                for fieldname in [fieldname for fieldname in fieldnames if fieldname != "geometry"]:
+                                    writer.writerow({ "field": "FIELD_"+str(i), "name": fieldname})
+                                    i += 1
+
                         output_filepath = output_filepath.replace(".shp", ".zip")
                         with ZipFile(output_filepath, 'w') as zipfile:
                             shp_components = ["shp", "cpg", "dbf", "prj", "shx"]
 
                             for file in os.listdir(dir_path):
-                                if file[-3:] in shp_components:
+                                if file[-3:] in shp_components or file == resource_metadata["name"] + " fields.csv":
                                     zipfile.write( dir_path + "/" + file )
+                                    os.remove( dir_path + "/" + file )
                     
                     output = utils.append_to_output(output, target_format, target_epsg, output_filepath)
 
