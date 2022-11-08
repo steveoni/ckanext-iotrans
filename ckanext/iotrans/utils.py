@@ -15,9 +15,10 @@ from zipfile import ZipFile
 
 
 def dump_generator(dump_url):
+
     with httpx.Client() as client:
         with client.stream("GET", dump_url, follow_redirects=True, timeout=60) as r:
-            print("connection made")
+            csv.field_size_limit(180000)
 
             # Create in-memory file. We save the row of the incoming CSV file here
             f = io.StringIO()
@@ -55,7 +56,6 @@ def dump_to_geospatial_generator(dump_filepath, fieldnames, target_format, sourc
         next(reader)
         for row in reader:
 
-
             # if the data contains a "geometry" column, we know its spatial
             if "geometry" in row.keys():
                 geometry = row.pop("geometry")
@@ -72,6 +72,7 @@ def dump_to_geospatial_generator(dump_filepath, fieldnames, target_format, sourc
 
                 yield(output)
         f.close()
+
 
 def transform_dump_epsg( dump_filepath, fieldnames, source_epsg, target_epsg ):
     # generator yields dump rows in a different epsg than the source

@@ -108,14 +108,13 @@ def to_file(context, data_dict):
                 elif target_format.lower() in drivers.keys():
 
                     # first, we need to build a schema
-                    ckan_to_fiona_typemap = {"text": "str", "date":"date", "timestamp":"str", "float":"float", "int":"int"}
+                    ckan_to_fiona_typemap = {"text": "str", "date":"str", "timestamp":"str", "float":"float", "int":"int"}
                     # get Point, Line, or Polygon from the first row of our data. !!! This code assumes all geometries in the dataset are the same type
                     geometry_type = json.loads(datastore_resource["records"][0]["geometry"])["type"]
                     # get all the field data types (other than geometry) and map them to fiona data types
                     fields_metadata = { field["id"]: ckan_to_fiona_typemap[''.join( [char for char in field["type"] if not char.isdigit()] )]  for field in datastore_resource["fields"] if field["id"] != "geometry"  }
                     schema = { 'geometry': geometry_type, 'properties': fields_metadata }
                     output_filepath = utils.create_filepath(dir_path, resource_metadata["name"], target_epsg, target_format)
-                    
 
                     with fiona.open(output_filepath, 'w', schema=schema, driver=drivers[target_format], crs=from_epsg(target_epsg)) as outlayer:
                         outlayer.writerecords( utils.dump_to_geospatial_generator(dump_filepath, fieldnames, target_format, data_dict["source_epsg"], target_epsg) )
