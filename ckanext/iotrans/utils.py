@@ -104,3 +104,25 @@ def write_to_csv(dump_filepath, fieldnames, rows_generator):
         writer.writerow( fieldnames )
         writer.writerows( rows_generator )
         f.close()
+
+def write_to_zipped_shapefile(fieldnames, dir_path, resource_metadata, output_filepath):
+    if any([len(name)>10 for name in fieldnames]):
+        fields_filepath = dir_path + "/" + resource_metadata["name"] + " fields.csv"
+        with open( fields_filepath, "w" ) as fields_file:
+            i = 1
+            writer = csv.DictWriter(fields_file, fieldnames = ["field", "name"])
+            writer.writeheader()
+            for fieldname in [fieldname for fieldname in fieldnames if fieldname != "geometry"]:
+                writer.writerow({ "field": "FIELD_"+str(i), "name": fieldname})
+                i += 1
+
+    output_filepath = output_filepath.replace(".shp", ".zip")
+    with ZipFile(output_filepath, 'w') as zipfile:
+        shp_components = ["shp", "cpg", "dbf", "prj", "shx"]
+
+        for file in os.listdir(dir_path):
+            if file[-3:] in shp_components or file == resource_metadata["name"] + " fields.csv":
+                zipfile.write( dir_path + "/" + file )
+                os.remove( dir_path + "/" + file )
+
+    return output_filepath

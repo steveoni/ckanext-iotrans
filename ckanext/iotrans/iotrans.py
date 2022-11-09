@@ -45,10 +45,11 @@ def to_file(context, data_dict):
     if not data_dict.get("resource_id", None):
         raise tk.ValidationError( {"constraints": [ "Input CKAN 'resource_id' required!" ]} )
 
+    # make sure target_formats is provided in a list
     if not isinstance( data_dict.get("target_formats", None), list):
         raise tk.ValidationError( {"constraints": [ "Input 'target_formats' required and must be a list of strings" ]} )
 
-    # Make sure the resource id provided is for a datastore 
+    # Make sure the resource id provided is for a datastore resource
     resource_metadata = tk.get_action("resource_show")(context, {"id": data_dict["resource_id"]})
     if resource_metadata.get("datastore_active", None) in ["false", "False", False] :
         raise tk.ValidationError( {"constraints": [ data_dict["resource_id"] + " is not a datastore resource!" ]} )
@@ -124,24 +125,7 @@ def to_file(context, data_dict):
                     if target_format.lower() == "shp":
                         # if a field has >10 characters, shapefiles replace all fieldnames with SHAPE_#
                         # we will map the field names to their SHAPE_# name
-                        if any([len(name)>10 for name in fieldnames]):
-                            fields_filepath = dir_path + "/" + resource_metadata["name"] + " fields.csv"
-                            with open( fields_filepath, "w" ) as fields_file:
-                                i = 1
-                                writer = csv.DictWriter(fields_file, fieldnames = ["field", "name"])
-                                writer.writeheader()
-                                for fieldname in [fieldname for fieldname in fieldnames if fieldname != "geometry"]:
-                                    writer.writerow({ "field": "FIELD_"+str(i), "name": fieldname})
-                                    i += 1
-
-                        output_filepath = output_filepath.replace(".shp", ".zip")
-                        with ZipFile(output_filepath, 'w') as zipfile:
-                            shp_components = ["shp", "cpg", "dbf", "prj", "shx"]
-
-                            for file in os.listdir(dir_path):
-                                if file[-3:] in shp_components or file == resource_metadata["name"] + " fields.csv":
-                                    zipfile.write( dir_path + "/" + file )
-                                    os.remove( dir_path + "/" + file )
+                        output_filepath = utils.write_to_zipped_shapefile(fieldnames, dir_path, resource_metadata, output_filepath)
                     
                     output = utils.append_to_output(output, target_format, target_epsg, output_filepath)
 
