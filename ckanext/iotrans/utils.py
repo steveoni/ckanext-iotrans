@@ -126,3 +126,28 @@ def write_to_zipped_shapefile(fieldnames, dir_path, resource_metadata, output_fi
                 os.remove( dir_path + "/" + file )
 
     return output_filepath
+
+def write_to_json(dump_filepath, output_filepath):
+    with open(dump_filepath, "r") as csvfile:
+        dictreader = csv.DictReader(csvfile)
+        with open(output_filepath, "a") as jsonfile:
+            jsonfile.write("[")
+            for row in dictreader:
+                jsonfile.write( json.dumps(row) )
+            jsonfile.write("]")
+
+def write_to_xml(dump_filepath, output_filepath):
+    with open(dump_filepath, "r") as csvfile:
+        dictreader = csv.DictReader(csvfile)
+        with open(output_filepath, "a") as xmlfile:
+            xmlfile.write('<?xml version="1.0" encoding="utf-8"?>')
+            xmlfile.write('<DATA>')
+            i = 0
+            for row in dictreader:
+                xml_row = '<ROW count="{}">'.format( str(i) )
+                for key, value in row.items():
+                    xml_row += "<{key}>{value}</{key}>".format( key=key, value=value )
+                    xmlfile.write( xml_row )
+                    xmlfile.write("</ROW>")
+                i += 1
+            xmlfile.write('</DATA>')
