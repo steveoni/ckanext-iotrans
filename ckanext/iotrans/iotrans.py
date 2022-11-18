@@ -59,11 +59,11 @@ def to_file(context, data_dict):
 
     # get fieldnames for the resource
     fieldnames = [ field["id"] for field in datastore_resource["fields"] ]
-    dump_url = "http://0.0.0.0:8080/datastore/dump/" + data_dict["resource_id"]
+    dump_url = "http://0.0.0.0:8080/datastore/dump/" + data_dict["resource_id"] + ""
     
     # create filepath for temp working file - this CSV will be used for all outputs going forward
     dump_filepath = utils.create_filepath(dir_path, resource_metadata["name"], data_dict.get("source_epsg", None), "csv")
-    utils.write_to_csv(dump_filepath, fieldnames, utils.dump_generator(dump_url))
+    utils.write_to_csv(dump_filepath, fieldnames, utils.dump_generator(dump_url, fieldnames))
 
     # Now that we have our dump on the disk, let's figure out what to do with it
     # Let's first determine whether geometry is involved

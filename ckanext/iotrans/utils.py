@@ -14,13 +14,12 @@ from . import utils
 from zipfile import ZipFile
 
 
-def dump_generator(dump_url):
+def dump_generator(dump_url, fieldnames):
 
     with httpx.Client() as client:
         with client.stream("GET", dump_url, follow_redirects=True, timeout=60) as r:
             csv.field_size_limit(180000)
 
-            # Create in-memory file. We save the row of the incoming CSV file here
             f = io.StringIO()
 
             # we iterate over the source CSV line by line
@@ -30,7 +29,11 @@ def dump_generator(dump_url):
             next(lines)
 
             for lineno, line in enumerate(lines, 2):
-                # Write one line to the in-memory file.                    
+
+                # Create in-memory file. We save the row of the incoming CSV file here                          
+                f = io.StringIO()                   
+
+                # Write one line to the in-memory file. 
                 f.write(line)
 
                 # Seek sends the file handle to the top of the file.
@@ -40,13 +43,33 @@ def dump_generator(dump_url):
                 reader = csv.reader(f)
                 row = next(reader)
 
+                print(row)
+
+                # if the line is broken mid-record, concat next line to working line
+                while len(row) < len(fieldnames):
+                    print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+                    line += next(lines)
+                    f = io.StringIO()                   
+
+                    # Write one line to the in-memory file. 
+                    f.write(line)
+
+                    # Seek sends the file handle to the top of the file.
+                    f.seek(0)
+                        
+                    # We initiate a CSV reader to read and parse each line of the CSV file
+                    reader = csv.reader(f)
+                    row = next(reader)
+
+                print(row)
+
                 yield(row)
 
                 # set file handle needs to the top
-                f.seek(0)
+                #f.seek(0)
 
                 # Clean up the buffer
-                f.flush()
+                #f.flush()
 
 
 def dump_to_geospatial_generator(dump_filepath, fieldnames, target_format, source_epsg = 4326, target_epsg=4326):
