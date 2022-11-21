@@ -43,11 +43,8 @@ def dump_generator(dump_url, fieldnames):
                 reader = csv.reader(f)
                 row = next(reader)
 
-                print(row)
-
                 # if the line is broken mid-record, concat next line to working line
                 while len(row) < len(fieldnames):
-                    print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
                     line += next(lines)
                     f = io.StringIO()                   
 
@@ -60,8 +57,6 @@ def dump_generator(dump_url, fieldnames):
                     # We initiate a CSV reader to read and parse each line of the CSV file
                     reader = csv.reader(f)
                     row = next(reader)
-
-                print(row)
 
                 yield(row)
 
@@ -132,12 +127,10 @@ def write_to_zipped_shapefile(fieldnames, dir_path, resource_metadata, output_fi
     if any([len(name)>10 for name in fieldnames]):
         fields_filepath = dir_path + "/" + resource_metadata["name"] + " fields.csv"
         with open( fields_filepath, "w" ) as fields_file:
-            i = 1
             writer = csv.DictWriter(fields_file, fieldnames = ["field", "name"])
             writer.writeheader()
             for fieldname in [fieldname for fieldname in fieldnames if fieldname != "geometry"]:
-                writer.writerow({ "field": "FIELD_"+str(i), "name": fieldname})
-                i += 1
+                writer.writerow({ "field": fieldname[:10], "name": fieldname})
 
     output_filepath = output_filepath.replace(".shp", ".zip")
     with ZipFile(output_filepath, 'w') as zipfile:
