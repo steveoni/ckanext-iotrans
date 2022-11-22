@@ -122,11 +122,15 @@ def to_file(context, data_dict):
                             outlayer.writerecords( utils.dump_to_geospatial_generator(dump_filepath, fieldnames, target_format, data_dict["source_epsg"], target_epsg) )
                             outlayer.close()
 
-                    # zip shapefile outputs together, as fiona creates many separate files
                     elif target_format.lower() == "shp":
-                        # if a field has >10 characters, shapefiles replace all fieldnames with SHAPE_#
-                        # we will map the field names to their SHAPE_# name
-                        working_fieldnames = [fieldname[:10] for fieldname in fieldnames]
+                        # Shapefiles are special
+
+                        # by default, shapefiles are made of many files
+                        # we zip those files in a single zip
+
+                        # by default, shp colnames with >10 chars are renamed FIELD_#
+                        # we dont like that, so we truncate fieldnames
+                        # we make a csv mapping truncated to full colnames
                         working_schema = schema
                         working_schema["properties"] = { field["id"][:10]: ckan_to_fiona_typemap[''.join( [char for char in field["type"] if not char.isdigit()] )]  for field in datastore_resource["fields"] if field["id"] != "geometry"  }
 
@@ -134,7 +138,7 @@ def to_file(context, data_dict):
                             outlayer.writerecords( utils.dump_to_geospatial_generator(dump_filepath, fieldnames, target_format, data_dict["source_epsg"], target_epsg) )
                             outlayer.close()
 
-                        output_filepath = utils.write_to_zipped_shapefile(working_fieldnames, dir_path, resource_metadata, output_filepath)
+                        output_filepath = utils.write_to_zipped_shapefile(fieldnames, dir_path, resource_metadata, output_filepath)
                     
                     output = utils.append_to_output(output, target_format, target_epsg, output_filepath)
 
