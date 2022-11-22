@@ -69,10 +69,17 @@ def dump_generator(dump_url, fieldnames):
 
 def dump_to_geospatial_generator(dump_filepath, fieldnames, target_format, source_epsg = 4326, target_epsg=4326):
 
+    if target_format == "shp":
+        working_fieldnames = [fieldname[:10] for fieldname in fieldnames]
+    else:
+        working_fieldnames = fieldnames
+
     with open(dump_filepath, "r") as f: 
-        reader = csv.DictReader(f, fieldnames=fieldnames)
+        reader = csv.DictReader(f, fieldnames=working_fieldnames)
         next(reader)
         for row in reader:
+
+            
 
             # if the data contains a "geometry" column, we know its spatial
             if "geometry" in row.keys():

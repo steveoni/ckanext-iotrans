@@ -117,15 +117,24 @@ def to_file(context, data_dict):
                     schema = { 'geometry': geometry_type, 'properties': fields_metadata }
                     output_filepath = utils.create_filepath(dir_path, resource_metadata["name"], target_epsg, target_format)
 
-                    with fiona.open(output_filepath, 'w', schema=schema, driver=drivers[target_format], crs=from_epsg(target_epsg)) as outlayer:
-                        outlayer.writerecords( utils.dump_to_geospatial_generator(dump_filepath, fieldnames, target_format, data_dict["source_epsg"], target_epsg) )
-                        outlayer.close()
+                    if target_format.lower() != "shp":
+                        with fiona.open(output_filepath, 'w', schema=schema, driver=drivers[target_format], crs=from_epsg(target_epsg)) as outlayer:
+                            outlayer.writerecords( utils.dump_to_geospatial_generator(dump_filepath, fieldnames, target_format, data_dict["source_epsg"], target_epsg) )
+                            outlayer.close()
 
                     # zip shapefile outputs together, as fiona creates many separate files
-                    if target_format.lower() == "shp":
+                    elif target_format.lower() == "shp":
                         # if a field has >10 characters, shapefiles replace all fieldnames with SHAPE_#
                         # we will map the field names to their SHAPE_# name
-                        output_filepath = utils.write_to_zipped_shapefile(fieldnames, dir_path, resource_metadata, output_filepath)
+                        working_fieldnames = [fieldname[:10] for fieldname in fieldnames]
+                        working_schema = schema
+                        working_schema["properties"] = { field["id"][:10]: ckan_to_fiona_typemap[''.join( [char for char in field["type"] if not char.isdigit()] )]  for field in datastore_resource["fields"] if field["id"] != "geometry"  }
+
+                        with fiona.open(output_filepath, 'w', schema=working_schema, driver=drivers[target_format], crs=from_epsg(target_epsg)) as outlayer:
+                            outlayer.writerecords( utils.dump_to_geospatial_generator(dump_filepath, fieldnames, target_format, data_dict["source_epsg"], target_epsg) )
+                            outlayer.close()
+
+                        output_filepath = utils.write_to_zipped_shapefile(working_fieldnames, dir_path, resource_metadata, output_filepath)
                     
                     output = utils.append_to_output(output, target_format, target_epsg, output_filepath)
 
