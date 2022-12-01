@@ -47,7 +47,44 @@ To temporary patch the CKAN configuration for the duration of a test you can use
     def test_some_action():
         pass
 """
-import ckanext.iotrans.plugin as plugin
+import ckanext.iotrans.utils as utils
+import filecmp
 
-def test_plugin():
+correct_filepath_with_epsg = "/tmp/iotrans_test_folder/resource_name - 4326.csv"
+correct_filepath_without_epsg = "/tmp/iotrans_test_folder/resource_name.csv"
+
+test_filepath_with_epsg = utils.create_filepath("/tmp/iotrans_test_folder", "resource_name", 4326, "csv")
+test_filepath_without_epsg = utils.create_filepath("/tmp/iotrans_test_folder", "resource_name", None, "csv")
+
+correct_dump_csv_filepath = "/usr/lib/ckan/default/src/ckanext-iotrans/ckanext/iotrans/tests/correct_dump.csv"
+correct_dump_json_filepath = "/usr/lib/ckan/default/src/ckanext-iotrans/ckanext/iotrans/tests/correct_dump.json"
+correct_dump_xml_filepath = "/usr/lib/ckan/default/src/ckanext-iotrans/ckanext/iotrans/tests/correct_dump.xml"
+
+test_dump_json_filepath = "/usr/lib/ckan/default/src/ckanext-iotrans/ckanext/iotrans/tests/test_dump.json"
+utils.write_to_json(correct_dump_csv_filepath, test_dump_json_filepath)
+
+def test_create_filepath_with_epsg():
+    """test case for utils.create_filepath with an input epsg"""
+
+    assert correct_filepath_with_epsg == test_filepath_with_epsg
+
+def test_create_filepath_without_epsg():
+    """test case for utils.create_filepath without an input epsg"""
+
+    assert correct_filepath_without_epsg == test_filepath_without_epsg
+
+def test_write_to_csv():
+    pass
+
+def test_write_to_json():
+    """test case for utils.write_to_json"""
+    assert filecmp.cmp(test_dump_json_filepath, correct_dump_json_filepath)
+    
+def test_write_to_xml():
+    pass
+
+def test_write_to_geospatial_generator():
+    pass
+
+def test_write_to_zipped_shapefile():
     pass

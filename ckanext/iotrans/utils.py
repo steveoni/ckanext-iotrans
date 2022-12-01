@@ -188,15 +188,37 @@ def write_to_zipped_shapefile(fieldnames, dir_path,
     return output_filepath
 
 
-def write_to_json(dump_filepath, output_filepath):
+def write_to_json(dump_filepath, output_filepath, datastore_fields):
     '''Stream into a JSON file'''
+
+    datatype_conversion = {
+        "text": str,
+        "date": str,
+        "timestamp": str,
+        "float": float,
+        "int": int,
+    }
 
     with open(dump_filepath, "r") as csvfile:
         dictreader = csv.DictReader(csvfile)
-        with open(output_filepath, "a") as jsonfile:
+        with open(output_filepath, "w") as jsonfile:
+            # write lines, delineated by ", "
             jsonfile.write("[")
             for row in dictreader:
+                # ensure output data types arent always strings
+                working_row = {}
+                for field in row.keys():
+                    converter = datatype_conversion[datastore_fields["type"]]
+                    working_row[field] = (row[field])
+
                 jsonfile.write(json.dumps(row))
+                jsonfile.write(", ")
+        with open(output_filepath, "rb+") as jsonfile:
+            # remove last ", "
+            jsonfile.seek(-2, 2)
+            jsonfile.truncate()
+        with open(output_filepath, "a") as jsonfile:
+            # add last closing ]
             jsonfile.write("]")
 
 
