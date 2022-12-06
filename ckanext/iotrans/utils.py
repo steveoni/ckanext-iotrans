@@ -231,7 +231,7 @@ def write_to_json(dump_filepath, output_filepath, datastore_resource):
 
                 jsonfile.write(json.dumps(working_row))
                 jsonfile.write(", ")
-                
+
         with open(output_filepath, "rb+") as jsonfile:
             # remove last ", "
             jsonfile.seek(-2, 2)
