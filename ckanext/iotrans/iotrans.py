@@ -296,7 +296,7 @@ def to_file(context, data_dict):
 
             # JSON
             elif target_format.lower() == "json":
-                utils.write_to_json(dump_filepath, output_filepath)
+                utils.write_to_json(dump_filepath, output_filepath, datastore_resource)
                 output = utils.append_to_output(
                     output, target_format, None, output_filepath
                 )

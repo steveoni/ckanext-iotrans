@@ -188,9 +188,13 @@ def write_to_zipped_shapefile(fieldnames, dir_path,
     return output_filepath
 
 
-def write_to_json(dump_filepath, output_filepath, datastore_fields):
+def write_to_json(dump_filepath, output_filepath, datastore_resource):
     '''Stream into a JSON file'''
 
+    # First, we need to ensure we map data types correctly
+    # We do this below, otherwise all data will be string
+
+    # make a map from ckan data types to python data types
     datatype_conversion = {
         "text": str,
         "date": str,
@@ -199,6 +203,16 @@ def write_to_json(dump_filepath, output_filepath, datastore_fields):
         "int": int,
     }
 
+    # map column name to python data types
+    fields_metadata = {
+        field["id"]: datatype_conversion[
+            "".join(
+                [char for char in field["type"] if not char.isdigit()])]
+            for field in datastore_resource["fields"]
+            if field["id"] != "geometry"
+    }
+
+    # Loop through each col in each row and transform data types
     with open(dump_filepath, "r") as csvfile:
         dictreader = csv.DictReader(csvfile)
         with open(output_filepath, "w") as jsonfile:
@@ -208,11 +222,16 @@ def write_to_json(dump_filepath, output_filepath, datastore_fields):
                 # ensure output data types arent always strings
                 working_row = {}
                 for field in row.keys():
-                    converter = datatype_conversion[datastore_fields["type"]]
-                    working_row[field] = (row[field])
+                    converter = fields_metadata[field]
+                    # make sure nulls are null and not empty strings
+                    if row[field]:
+                        working_row[field] = converter(row[field])
+                    else:
+                        working_row[field] = None
 
-                jsonfile.write(json.dumps(row))
+                jsonfile.write(json.dumps(working_row))
                 jsonfile.write(", ")
+                
         with open(output_filepath, "rb+") as jsonfile:
             # remove last ", "
             jsonfile.seek(-2, 2)

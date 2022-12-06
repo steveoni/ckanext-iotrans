@@ -1,0 +1,125 @@
+{
+    "include_total": true,
+    "limit": 0,
+    "records_format": "objects",
+    "resource_id": "67af271c-f1e9-427f-bafb-34f13ab02c42",
+    "total_estimation_threshold": null,
+    "records": [],
+    "fields": [
+        {
+            "id": "_id",
+            "type": "int"
+        },
+        {
+            "id": "District name",
+            "type": "text",
+            "info": {
+                "notes": "Jurisdiction in which the elected official serves"
+            }
+        },
+        {
+            "id": "District ID",
+            "type": "float",
+            "info": {
+                "notes": "The district/area for which the Mayor or councillor was elected"
+            }
+        },
+        {
+            "id": "Primary role",
+            "type": "text",
+            "info": {
+                "notes": "Elected official's role"
+            }
+        },
+        {
+            "id": "First name",
+            "type": "text",
+            "info": {
+                "notes": "Elected official's first name"
+            }
+        },
+        {
+            "id": "Last name",
+            "type": "text",
+            "info": {
+                "notes": "Elected official's last name"
+            }
+        },
+        {
+            "id": "Email",
+            "type": "text",
+            "info": {
+                "notes": "Elected official's email adress\"\""
+            }
+        },
+        {
+            "id": "Photo URL",
+            "type": "text",
+            "info": {
+                "notes": "Online address where a photo of the elected official is available"
+            }
+        },
+        {
+            "id": "Website",
+            "type": "text",
+            "info": {
+                "notes": "City of Toronto's web page linking to the mayor and councillor's contact information\"\""
+            }
+        },
+        {
+            "id": "Address line 1",
+            "type": "text",
+            "info": {
+                "notes": "First line of address"
+            }
+        },
+        {
+            "id": "Address line 2",
+            "type": "text",
+            "info": {
+                "notes": "Second line of address"
+            }
+        },
+        {
+            "id": "Locality",
+            "type": "text",
+            "info": {
+                "notes": "Part of address"
+            }
+        },
+        {
+            "id": "Postal code",
+            "type": "text",
+            "info": {
+                "notes": "Part of address"
+            }
+        },
+        {
+            "id": "Province",
+            "type": "text",
+            "info": {
+                "notes": "Part of address"
+            }
+        },
+        {
+            "id": "Phone",
+            "type": "text",
+            "info": {
+                "notes": "Phone Number\"\""
+            }
+        },
+        {
+            "id": "Personal Website",
+            "type": "text",
+            "info": {
+                "notes": "Elected official's personal website, if available "
+            }
+        }
+    ],
+    "_links": {
+        "start": "/api/action/datastore_search?id=67af271c-f1e9-427f-bafb-34f13ab02c42&limit=0",
+        "next": "/api/action/datastore_search?id=67af271c-f1e9-427f-bafb-34f13ab02c42&limit=0&offset=0"
+    },
+    "total": 49,
+    "total_was_estimated": false
+}
