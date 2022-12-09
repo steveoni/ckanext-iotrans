@@ -58,19 +58,19 @@ test_tmp_path = "/tmp/iotrans_test_folder/"
 correct_filepath_with_epsg = test_tmp_path + "resource_name - 4326.csv"
 correct_filepath_without_epsg = test_tmp_path + "resource_name.csv"
 
-test_filepath_with_epsg = utils.create_filepath("test_tmp_path" + "",
+test_filepath_with_epsg = utils.create_filepath(test_tmp_path + "",
                                                 "resource_name", 4326, "csv")
-test_filepath_no_epsg = utils.create_filepath("test_tmp_path" + "",
+test_filepath_no_epsg = utils.create_filepath(test_tmp_path + "",
                                               "resource_name", None, "csv")
 
-correct_dump_csv_filepath = test_dir_path + "correct_dump.csv"
-correct_dump_json_filepath = test_dir_path + "correct_dump.json"
-correct_dump_xml_filepath = test_dir_path + "correct_dump.xml"
+correct_dump_csv_filepath = test_dir_path + "/correct_dump.csv"
+correct_dump_json_filepath = test_dir_path + "/correct_dump.json"
+correct_dump_xml_filepath = test_dir_path + "/correct_dump.xml"
 
-test_dump_json_filepath = test_dir_path + "test_dump.json"
-test_dump_xml_filepath = test_dir_path + "test_dump.xml"
+test_dump_json_filepath = test_dir_path + "/test_dump.json"
+test_dump_xml_filepath = test_dir_path + "/test_dump.xml"
 
-with open(test_dir_path + "correct_datastore_resource.json") as jsonfile:
+with open(test_dir_path + "/correct_datastore_resource.json") as jsonfile:
     correct_datastore_resource = json.load(jsonfile)
     utils.write_to_json(correct_dump_csv_filepath,
                         test_dump_json_filepath,

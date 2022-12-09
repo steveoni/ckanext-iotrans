@@ -40,3 +40,9 @@ coverage.xml
 
 # Sphinx documentation
 docs/_build/
+
+# test files
+
+ckanext/iotrans/tests/test_dump.xml
+ckanext/iotrans/tests/test_dump.csv
+ckanext/iotrans/tests/test_dump.json
