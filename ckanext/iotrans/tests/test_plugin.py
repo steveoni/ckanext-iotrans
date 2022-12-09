@@ -138,8 +138,8 @@ def test_dump_to_geospatial_generator():
         assert len(item["properties"])
         assert isinstance(item["geometry"], dict)
         assert len(item["geometry"])
-        
 
 
 def test_write_to_zipped_shapefile():
+    """To Do"""
     pass
