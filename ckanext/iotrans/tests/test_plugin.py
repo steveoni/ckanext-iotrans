@@ -64,6 +64,24 @@ test_filepath_no_epsg = utils.create_filepath(test_tmp_path + "",
                                               "resource_name", None, "csv")
 
 correct_dump_csv_filepath = test_dir_path + "/correct_dump.csv"
+correct_spatial_dump_csv_filepath = test_dir_path + "/correct_geo_dump.csv"
+correct_spatial_csv_dump_fieldnames = [
+    "service_system_manager",
+    "agency",
+    "loc_id",
+    "program_name",
+    "serviceName",
+    "buildingName",
+    "address",
+    "full_address",
+    "major_intersection",
+    "ward",
+    "ward_name",
+    "located_in_school",
+    "school_name",
+    "geometry",
+    "centre_type",
+]
 correct_dump_json_filepath = test_dir_path + "/correct_dump.json"
 correct_dump_xml_filepath = test_dir_path + "/correct_dump.xml"
 
@@ -78,6 +96,14 @@ with open(test_dir_path + "/correct_datastore_resource.json") as jsonfile:
 
 utils.write_to_xml(correct_dump_csv_filepath, test_dump_xml_filepath)
 
+correct_geospatial_generator = utils.dump_to_geospatial_generator(
+    correct_spatial_dump_csv_filepath,
+    correct_spatial_csv_dump_fieldnames,
+    "geojson",
+    4326,
+    2952
+)
+
 
 def test_create_filepath_with_epsg():
     """test case for utils.create_filepath with an input epsg"""
@@ -90,6 +116,7 @@ def test_create_filepath_without_epsg():
 
 
 def test_write_to_csv():
+    """To Do"""
     pass
 
 
@@ -103,8 +130,15 @@ def test_write_to_xml():
     assert filecmp.cmp(test_dump_json_filepath, correct_dump_json_filepath)
 
 
-def test_write_to_geospatial_generator():
-    pass
+def test_dump_to_geospatial_generator():
+    """checks if generator made by utils.dump_to_geospatial_generator
+    contains dicts with valid, non-empty data"""
+    for item in correct_geospatial_generator:
+        assert isinstance(item["properties"], dict)
+        assert len(item["properties"])
+        assert isinstance(item["geometry"], dict)
+        assert len(item["geometry"])
+        
 
 
 def test_write_to_zipped_shapefile():
