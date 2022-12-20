@@ -81,6 +81,7 @@ correct_spatial_csv_dump_fieldnames = [
     "geometry",
     "centre_type",
 ]
+correct_dump_csv_filepath = test_dir_path + "/correct_dump.csv"
 correct_dump_json_filepath = test_dir_path + "/correct_dump.json"
 correct_dump_xml_filepath = test_dir_path + "/correct_dump.xml"
 
