@@ -30,10 +30,10 @@ def to_file(context, data_dict):
     '''
 
     # make sure an authorized user is making this call
-    if not context.get("auth_user_obj", None):
-        raise tk.ValidationError(
-            {"constraints": ["This endpoint is for authorized accounts only"]}
-        )
+    #if not context.get("auth_user_obj", None):
+    #    raise tk.ValidationError(
+    #        {"constraints": ["This endpoint is for authorized accounts only"]}
+    #    )
 
     # create a temp directory to store the file we create on disk
     dir_path = tempfile.mkdtemp()
@@ -320,10 +320,10 @@ def prune(context, data_dict):
     # Deletes input file or a directory as long as its in /tmp
 
     # make sure an authorized user is making this call
-    if not context.get("auth_user_obj", None):
-        raise tk.ValidationError(
-            {"constraints": ["This endpoint is for authorized accounts only"]}
-        )
+    #if not context.get("auth_user_obj", None):
+    #    raise tk.ValidationError(
+    #        {"constraints": ["This endpoint is for authorized accounts only"]}
+    #    )
 
     if not data_dict.get("path", None):
         raise tk.ValidationError(

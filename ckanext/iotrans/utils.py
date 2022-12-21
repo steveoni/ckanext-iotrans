@@ -259,3 +259,11 @@ def write_to_xml(dump_filepath, output_filepath):
                     xmlfile.write("</ROW>")
                 i += 1
             xmlfile.write("</DATA>")
+
+
+def iotrans_auth_function(context, data_dict=None):
+    if context.get("auth_user_obj", False):
+        return {'success': True}
+    elif not context.get("auth_user_obj", None):
+        return {'success': False, 
+                'msg': 'This endpoint is for authorized accounts only'}

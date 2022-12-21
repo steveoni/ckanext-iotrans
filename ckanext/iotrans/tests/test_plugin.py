@@ -48,12 +48,14 @@ To temporary patch the CKAN configuration for the duration of a test, use:
         pass
 """
 import ckanext.iotrans.utils as utils
+import ckanext.iotrans.iotrans as iotrans
 import filecmp
 import json
 import os
 import pytest
 import ckan.tests.helpers as helpers
 import ckan.tests.factories as factories
+import ckan.model as model
 import six
 
 
@@ -138,25 +140,3 @@ def test_dump_to_geospatial_generator():
         assert len(item["properties"])
         assert isinstance(item["geometry"], dict)
         assert len(item["geometry"])
-
-class TestDumpGenerator(object):
-    @pytest.mark.usefixtures("clean_db", "with_plugins")
-    def test_dump_generator(self, app):
-        """checks if dump generator can read from CKAN and create a generator"""
-        resource = factories.Resource()
-        data = {
-            "resource_id": resource["id"],
-            "force": True,
-            "records": [{u"book": "annakarenina"}, {u"book": "warandpeace"}],
-        }
-
-        generator = utils.dump_generator(
-            "http://0.0.0.0:8080/datastore/dump/{0}".format(
-            str(resource["id"])), ["book"])
-
-        for i in generator:
-            assert i
-
-        
-
-

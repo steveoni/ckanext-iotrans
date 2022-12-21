@@ -1,5 +1,5 @@
 import ckan.plugins as plugins
-from . import iotrans
+from . import iotrans, utils
 
 
 class IotransPlugin(plugins.SingletonPlugin):
@@ -20,4 +20,18 @@ class IotransPlugin(plugins.SingletonPlugin):
         return {
             "to_file": iotrans.to_file,
             "prune": iotrans.prune,
+        }
+
+    """
+    # ==============================
+    # IAuthFunctions
+    # ==============================
+    These are the auth rules for the above actions
+    """
+    plugins.implements(plugins.IAuthFunctions)
+
+    def get_auth_functions(self):
+        return {
+            "to_file": utils.iotrans_auth_function,
+            "prune": utils.iotrans_auth_function,
         }
