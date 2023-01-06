@@ -16,38 +16,40 @@ test_tmp_path = "/tmp/iotrans_test_folder/"
 
 
 @pytest.fixture
-def test_filepath_with_epsg():
-    return utils.create_filepath(test_tmp_path + "",
-                                 "resource_name", 4326, "csv")
-
-
-@pytest.fixture
-def test_filepath_no_epsg():
-    return utils.create_filepath(test_tmp_path + "",
-                                 "resource_name", None, "csv")
-
-
-@pytest.fixture
 def test_dump_json_filepath():
+    # create filepath string
     correct_dump_csv_filepath = test_dir_path + "/correct_dump.csv"
     filepath = test_dir_path + "/test_dump.json"
+
+    # delete existing test file if it exists
     if os.path.exists(filepath):
         os.remove(filepath)
+
+    # create test file
     with open(test_dir_path + "/correct_datastore_resource.json") as jsonfile:
         correct_datastore_resource = json.load(jsonfile)
         utils.write_to_json(correct_dump_csv_filepath,
                             filepath,
                             correct_datastore_resource)
+
+    # return location of test file
     return filepath
 
 
 @pytest.fixture
 def test_dump_xml_filepath():
+    # create filepath string
     correct_dump_csv_filepath = test_dir_path + "/correct_dump.csv"
     filepath = test_dir_path + "/test_dump.xml"
+
+    # delete existing test file if it exists
     if os.path.exists(filepath):
         os.remove(filepath)
+
+    # create test file
     utils.write_to_xml(correct_dump_csv_filepath, filepath)
+
+    # return test file location
     return filepath
 
 
@@ -81,16 +83,22 @@ def correct_geospatial_generator():
     )
 
 
-def test_create_filepath_with_epsg(test_filepath_with_epsg):
+def test_create_filepath_with_epsg():
     """test case for utils.create_filepath with an input epsg"""
     correct_filepath_with_epsg = test_tmp_path + "resource_name - 4326.csv"
+    test_filepath_with_epsg = utils.create_filepath(test_tmp_path + "",
+                                                    "resource_name",
+                                                    4326,
+                                                    "csv")
 
     assert correct_filepath_with_epsg == test_filepath_with_epsg
 
 
-def test_create_filepath_without_epsg(test_filepath_no_epsg):
+def test_create_filepath_without_epsg():
     """test case for utils.create_filepath without an input epsg"""
     correct_filepath_without_epsg = test_tmp_path + "resource_name.csv"
+    test_filepath_no_epsg = utils.create_filepath(test_tmp_path + "",
+                                                  "resource_name", None, "csv")
 
     assert correct_filepath_without_epsg == test_filepath_no_epsg
 
