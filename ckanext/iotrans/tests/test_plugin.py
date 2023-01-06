@@ -13,13 +13,19 @@ test_dir_path = os.path.dirname(os.path.realpath(__file__))
 test_tmp_path = "/tmp/iotrans_test_folder/"
 
 # Define fixtures
-@pytest.fixture
-def test_filepath_with_epsg():
-    return utils.create_filepath(test_tmp_path + "", "resource_name", 4326, "csv")
+
 
 @pytest.fixture
-def test_filepath_no_epsg(): 
-    return utils.create_filepath(test_tmp_path + "", "resource_name", None, "csv")
+def test_filepath_with_epsg():
+    return utils.create_filepath(test_tmp_path + "",
+                                 "resource_name", 4326, "csv")
+
+
+@pytest.fixture
+def test_filepath_no_epsg():
+    return utils.create_filepath(test_tmp_path + "",
+                                 "resource_name", None, "csv")
+
 
 @pytest.fixture
 def test_dump_json_filepath():
@@ -34,6 +40,7 @@ def test_dump_json_filepath():
                             correct_datastore_resource)
     return filepath
 
+
 @pytest.fixture
 def test_dump_xml_filepath():
     correct_dump_csv_filepath = test_dir_path + "/correct_dump.csv"
@@ -42,6 +49,7 @@ def test_dump_xml_filepath():
         os.remove(filepath)
     utils.write_to_xml(correct_dump_csv_filepath, filepath)
     return filepath
+
 
 @pytest.fixture
 def correct_geospatial_generator():
@@ -63,7 +71,7 @@ def correct_geospatial_generator():
         "geometry",
         "centre_type",
     ]
-    
+
     return utils.dump_to_geospatial_generator(
         correct_spatial_dump_csv_filepath,
         correct_spatial_csv_dump_fieldnames,
@@ -85,6 +93,7 @@ def test_create_filepath_without_epsg(test_filepath_no_epsg):
     correct_filepath_without_epsg = test_tmp_path + "resource_name.csv"
 
     assert correct_filepath_without_epsg == test_filepath_no_epsg
+
 
 def test_write_to_json(test_dump_json_filepath):
     """test case for utils.write_to_json"""
