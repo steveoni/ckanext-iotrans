@@ -255,8 +255,8 @@ def write_to_xml(dump_filepath, output_filepath):
                 for key, value in row.items():
                     xml_row += "<{key}>{value}</{key}>".format(
                         key=key, value=value)
-                    xmlfile.write(xml_row)
-                    xmlfile.write("</ROW>")
+                xmlfile.write(xml_row)
+                xmlfile.write("</ROW>")
                 i += 1
             xmlfile.write("</DATA>")
 
