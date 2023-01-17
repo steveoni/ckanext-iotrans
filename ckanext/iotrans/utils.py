@@ -9,6 +9,8 @@ from fiona.crs import from_epsg
 from fiona.transform import transform_geom
 import requests
 from zipfile import ZipFile
+from shapely.geometry import MultiPolygon, MultiPoint, MultiLineString
+
 
 
 def dump_generator(dump_url, fieldnames):
@@ -67,6 +69,16 @@ def dump_to_geospatial_generator(
     else:
         working_fieldnames = fieldnames
 
+    # Each geometry must be converted to multi
+    GEOM_TYPE_MAP = {
+        'Polygon': MultiPolygon,
+        'LineString': MultiLineString,
+        'Point': MultiPoint,
+        "MultiPolygon" : MultiPolygon,
+        "MultiLineString" : MultiLineString,
+        "MultiPoint" : MultiPoint,
+    }
+
     # For each row in the dump ...
     with open(dump_filepath, "r") as f:
         reader = csv.DictReader(f, fieldnames=working_fieldnames)
@@ -77,6 +89,14 @@ def dump_to_geospatial_generator(
             if "geometry" in row.keys():
                 geometry = row.pop("geometry")
 
+                print("===========================")
+                print(dump_filepath)
+                print(fieldnames)
+                print(target_format)
+                print(source_epsg)
+                print(target_epsg)
+                print("===========================")
+
                 # if we need to transform the EPSG, we do it here
                 if target_epsg != source_epsg:
                     geometry = transform_geom(
@@ -85,6 +105,14 @@ def dump_to_geospatial_generator(
                         json.loads(geometry),
                     )
                     geometry["coordinates"] = list(geometry["coordinates"])
+                    if not geometry["type"].startswith("Multi"):
+                        geometry["coordinates"] = [geometry["coordinates"]]
+    
+                        geometry["type"] = "Multi" + geometry["type"]
+                        print("xxxxxxxxxxxxxxxxxxxxxxxxxxxxx")
+                        print(geometry)
+                        print("xxxxxxxxxxxxxxxxxxxxxxxxxxxxx")
+                        
 
                     output = {
                         "type": "Feature",
@@ -93,10 +121,19 @@ def dump_to_geospatial_generator(
                     }
 
                 else:
+                    geometry = json.loads(geometry)
+                    if not geometry["type"].startswith("Multi"):
+                        geometry["coordinates"] = [geometry["coordinates"]]
+
+                        geometry["type"] = "Multi" + geometry["type"]
+                        print("xxxxxxxxxxxxxxxxxxxxxxxxxxxxx")
+                        print(geometry)
+                        print("xxxxxxxxxxxxxxxxxxxxxxxxxxxxx")
+                        
                     output = {
                         "type": "Feature",
                         "properties": dict(row),
-                        "geometry": json.loads(geometry),
+                        "geometry": geometry,
                     }
 
                 yield (output)

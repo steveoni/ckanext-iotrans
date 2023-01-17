@@ -180,10 +180,18 @@ def to_file(context, data_dict):
                         "int": "int",
                     }
                     # Get Point, Line, or Polygon from the first row of data
-                    # We assume all geometries in a dataset are the same type
-                    geometry_type = json.loads(
+                    geom_type_map = {
+                        "Point":"MultiPoint",
+                        "LineString":"MultiLineString",
+                        "Polygon":"MultiPolygon",
+                        "MultiPoint":"MultiPoint",
+                        "MultiLineString":"MultiLineString",
+                        "MultiPolygon":"MultiPolygon",
+                    }
+                    # and convert to multi (ex point to multipoint)
+                    geometry_type = geom_type_map[json.loads(
                         datastore_resource["records"][0]["geometry"]
-                    )["type"]
+                    )["type"]]
                     # Get all the field data types (other than geometry)
                     # Map them to fiona data types
                     fields_metadata = {
