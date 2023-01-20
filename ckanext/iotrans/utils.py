@@ -89,14 +89,6 @@ def dump_to_geospatial_generator(
             if "geometry" in row.keys():
                 geometry = row.pop("geometry")
 
-                print("===========================")
-                print(dump_filepath)
-                print(fieldnames)
-                print(target_format)
-                print(source_epsg)
-                print(target_epsg)
-                print("===========================")
-
                 # if we need to transform the EPSG, we do it here
                 if target_epsg != source_epsg:
                     geometry = transform_geom(
@@ -108,10 +100,7 @@ def dump_to_geospatial_generator(
                     if not geometry["type"].startswith("Multi"):
                         geometry["coordinates"] = [geometry["coordinates"]]
     
-                        geometry["type"] = "Multi" + geometry["type"]
-                        print("xxxxxxxxxxxxxxxxxxxxxxxxxxxxx")
-                        print(geometry)
-                        print("xxxxxxxxxxxxxxxxxxxxxxxxxxxxx")
+                        geometry["type"] = "Multi" + geometry["type"]                                                                        
                         
 
                     output = {
@@ -125,10 +114,7 @@ def dump_to_geospatial_generator(
                     if not geometry["type"].startswith("Multi"):
                         geometry["coordinates"] = [geometry["coordinates"]]
 
-                        geometry["type"] = "Multi" + geometry["type"]
-                        print("xxxxxxxxxxxxxxxxxxxxxxxxxxxxx")
-                        print(geometry)
-                        print("xxxxxxxxxxxxxxxxxxxxxxxxxxxxx")
+                        geometry["type"] = "Multi" + geometry["type"]                                                                        
                         
                     output = {
                         "type": "Feature",
