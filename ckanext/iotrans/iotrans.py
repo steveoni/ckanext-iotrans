@@ -181,12 +181,12 @@ def to_file(context, data_dict):
                     }
                     # Get Point, Line, or Polygon from the first row of data
                     geom_type_map = {
-                        "Point":"MultiPoint",
-                        "LineString":"MultiLineString",
-                        "Polygon":"MultiPolygon",
-                        "MultiPoint":"MultiPoint",
-                        "MultiLineString":"MultiLineString",
-                        "MultiPolygon":"MultiPolygon",
+                        "Point": "MultiPoint",
+                        "LineString": "MultiLineString",
+                        "Polygon": "MultiPolygon",
+                        "MultiPoint": "MultiPoint",
+                        "MultiLineString": "MultiLineString",
+                        "MultiPolygon": "MultiPolygon",
                     }
                     # and convert to multi (ex point to multipoint)
                     geometry_type = geom_type_map[json.loads(

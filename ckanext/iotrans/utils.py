@@ -9,8 +9,6 @@ from fiona.crs import from_epsg
 from fiona.transform import transform_geom
 import requests
 from zipfile import ZipFile
-from shapely.geometry import MultiPolygon, MultiPoint, MultiLineString
-
 
 
 def dump_generator(dump_url, fieldnames):
@@ -22,7 +20,7 @@ def dump_generator(dump_url, fieldnames):
     # we iterate over the source CSV line by line
     lines = r.iter_lines(decode_unicode=True)
 
-    # skip the first line of the csv since its a header
+    # skip the first line of the csv since its a headers
     next(lines)
 
     for lineno, line in enumerate(lines, 2):
@@ -69,16 +67,6 @@ def dump_to_geospatial_generator(
     else:
         working_fieldnames = fieldnames
 
-    # Each geometry must be converted to multi
-    GEOM_TYPE_MAP = {
-        'Polygon': MultiPolygon,
-        'LineString': MultiLineString,
-        'Point': MultiPoint,
-        "MultiPolygon" : MultiPolygon,
-        "MultiLineString" : MultiLineString,
-        "MultiPoint" : MultiPoint,
-    }
-
     # For each row in the dump ...
     with open(dump_filepath, "r") as f:
         reader = csv.DictReader(f, fieldnames=working_fieldnames)
@@ -99,9 +87,8 @@ def dump_to_geospatial_generator(
                     geometry["coordinates"] = list(geometry["coordinates"])
                     if not geometry["type"].startswith("Multi"):
                         geometry["coordinates"] = [geometry["coordinates"]]
-    
-                        geometry["type"] = "Multi" + geometry["type"]                                                                        
-                        
+
+                        geometry["type"] = "Multi" + geometry["type"]
 
                     output = {
                         "type": "Feature",
@@ -114,8 +101,8 @@ def dump_to_geospatial_generator(
                     if not geometry["type"].startswith("Multi"):
                         geometry["coordinates"] = [geometry["coordinates"]]
 
-                        geometry["type"] = "Multi" + geometry["type"]                                                                        
-                        
+                        geometry["type"] = "Multi" + geometry["type"]
+
                     output = {
                         "type": "Feature",
                         "properties": dict(row),
@@ -288,5 +275,5 @@ def iotrans_auth_function(context, data_dict=None):
     if context.get("auth_user_obj", False):
         return {'success': True}
     elif not context.get("auth_user_obj", None):
-        return {'success': False, 
+        return {'success': False,
                 'msg': 'This endpoint is for authorized accounts only'}
