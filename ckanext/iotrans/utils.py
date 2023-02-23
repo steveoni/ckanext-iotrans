@@ -210,6 +210,7 @@ def write_to_json(dump_filepath, output_filepath, datastore_resource):
         "date": str,
         "timestamp": str,
         "float": float,
+        "numeric": float, # this data type exists in some legacy data
         "int": int,
     }
 
