@@ -10,6 +10,7 @@ from fiona.transform import transform_geom
 import requests
 from zipfile import ZipFile
 
+import ckan.plugins.toolkit as tk
 
 def dump_generator(dump_url, fieldnames):
     '''reads a CKAN dumped CSV, returns a python generator'''
@@ -198,59 +199,46 @@ def write_to_zipped_shapefile(fieldnames, dir_path,
     return output_filepath
 
 
-def write_to_json(dump_filepath, output_filepath, datastore_resource):
-    '''Stream into a JSON file'''
+def write_to_json(dump_filepath, output_filepath, datastore_resource, context):
+    '''Stream into a JSON file by running datastore_search over and over'''
+    with open(output_filepath, "w") as jsonfile:
+        # write starting bracket
+        jsonfile.write("[")
 
-    # First, we need to ensure we map data types correctly
-    # We do this below, otherwise all data will be string
-
-    # make a map from ckan data types to python data types
-    datatype_conversion = {
-        "text": str,
-        "date": str,
-        "timestamp": str,
-        "float": float,
-        "numeric": float, # this data type exists in some legacy data
-        "int": int,
-    }
-
-    # map column name to python data types
-    fields_metadata = {
-        field["id"]: datatype_conversion[
-            "".join(
-                [char for char in field["type"] if not char.isdigit()])]
-            for field in datastore_resource["fields"]
-            if field["id"] != "geometry"
-    }
-
-    # Loop through each col in each row and transform data types
-    with open(dump_filepath, "r") as csvfile:
-        dictreader = csv.DictReader(csvfile)
-        with open(output_filepath, "w") as jsonfile:
-            # write lines, delineated by ", "
-            jsonfile.write("[")
-            for row in dictreader:
-                # ensure output data types arent always strings
-                working_row = {}
-                for field in row.keys():
-                    converter = fields_metadata[field]
-                    # make sure nulls are null and not empty strings
-                    if row[field]:
-                        working_row[field] = converter(row[field])
-                    else:
-                        working_row[field] = None
-
-                jsonfile.write(json.dumps(working_row))
+        # grab first chunk of records
+        chunk_size = 20000
+        iteration = 0
+        data_chunk = tk.get_action("datastore_search")(
+            context, {
+                "resource_id": datastore_resource["resource_id"],
+                "limit": chunk_size,
+                }
+            )
+        # as long as there is more to grab, grab the next chunk
+        while len(data_chunk["records"]):
+            
+            for record in data_chunk["records"]:
+                jsonfile.write(json.dumps(record))
                 jsonfile.write(", ")
-
-        with open(output_filepath, "rb+") as jsonfile:
+            iteration += 1
+            data_chunk = tk.get_action("datastore_search")(
+            context, {
+                "resource_id": datastore_resource["resource_id"],
+                "limit": chunk_size,
+                "offset": chunk_size*iteration,
+                }
+            )
+    
+    with open(output_filepath, "rb+") as jsonfile:
             # remove last ", "
             jsonfile.seek(-2, 2)
             jsonfile.truncate()
-        with open(output_filepath, "a") as jsonfile:
-            # add last closing ]
-            jsonfile.write("]")
 
+    with open(output_filepath, "a") as jsonfile:
+        # add last closing ]
+        jsonfile.write("]")
+
+    
 
 def write_to_xml(dump_filepath, output_filepath):
     '''Stream into an XML file'''

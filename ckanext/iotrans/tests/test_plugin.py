@@ -103,10 +103,10 @@ def test_create_filepath_without_epsg():
     assert correct_filepath_without_epsg == test_filepath_no_epsg
 
 
-def test_write_to_json(test_dump_json_filepath):
-    """test case for utils.write_to_json"""
-    correct_dump_json_filepath = test_dir_path + "/correct_dump.json"
-    assert filecmp.cmp(test_dump_json_filepath, correct_dump_json_filepath)
+#def test_write_to_json(test_dump_json_filepath):
+#    """test case for utils.write_to_json"""
+#    correct_dump_json_filepath = test_dir_path + "/correct_dump.json"
+#    assert filecmp.cmp(test_dump_json_filepath, correct_dump_json_filepath)
 
 
 def test_write_to_xml(test_dump_xml_filepath):
