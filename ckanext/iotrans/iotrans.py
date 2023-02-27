@@ -238,22 +238,32 @@ def to_file(context, data_dict):
                         # By default, shp colnames are renamed FIELD_#
                         # ... if their name is more than 10 characters long
 
-                        # We dont like that, so we truncate fieldnames
+                        # We dont like that, so we truncate all fieldnames
+                        # ... w concat'd increasing integer so no duplicates
+                        # ... but only if there are colnames >= 10 chars
                         # We make a csv mapping truncated to full colnames
                         working_schema = schema
-                        working_schema["properties"] = {
-                            field["id"][:10]: ckan_to_fiona_typemap[
-                                "".join(
-                                    [
-                                        char
-                                        for char in field["type"]
-                                        if not char.isdigit()
-                                    ]
-                                )
-                            ]
-                            for field in datastore_resource["fields"]
-                            if field["id"] != "geometry"
-                        }
+                        col_map = {}
+                        if any([len(field["id"]) >= 10 
+                            for field in datastore_resource["fields"]]):
+                            i = 1
+                            working_fieldnames = []
+                            working_schema["properties"] = {}
+                            for field in datastore_resource["fields"]:
+                                if field["id"] != "geometry":
+                                    type = ckan_to_fiona_typemap[
+                                            "".join(
+                                                [
+                                                    char
+                                                    for char in field["type"]
+                                                    if not char.isdigit()
+                                                ]
+                                            )
+                                        ]
+                                    name = field["id"][:7] + str(i)
+                                    col_map[field["id"]] = name
+                                    working_schema["properties"][name] = type
+                                    i += 1
 
                         with fiona.open(
                             output_filepath,
@@ -269,6 +279,7 @@ def to_file(context, data_dict):
                                     target_format,
                                     data_dict["source_epsg"],
                                     target_epsg,
+                                    col_map
                                 )
                             )
                             outlayer.close()

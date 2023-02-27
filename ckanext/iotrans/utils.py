@@ -58,25 +58,38 @@ def dump_generator(dump_url, fieldnames):
 
 
 def dump_to_geospatial_generator(
-    dump_filepath, fieldnames, target_format, source_epsg, target_epsg
+    dump_filepath, fieldnames, target_format, source_epsg, target_epsg, 
+    col_map=None
 ):
     '''reads a CKAN CSV dump, creates generator with converted CRS'''
 
-    # Shapefiles can only have colnames of max 10 characters
-    if target_format == "shp":
-        working_fieldnames = [fieldname[:10] for fieldname in fieldnames]
-    else:
-        working_fieldnames = fieldnames
+    print("+++++++++++++++++")
+    print(target_format)
+    print("+++++++++++++++++")
 
     # For each row in the dump ...
     with open(dump_filepath, "r") as f:
-        reader = csv.DictReader(f, fieldnames=working_fieldnames)
+        reader = csv.DictReader(f, fieldnames=fieldnames)
         next(reader)
         for row in reader:
+            print(row)
 
             # if the data contains a "geometry" column, we know its spatial
             if "geometry" in row.keys():
                 geometry = row.pop("geometry")
+
+                # shapefile column names need to be mapped from col_map
+                if target_format == "shp":
+                    i = 0
+                    working_row = {}
+                    for key, value in row.items():
+                        working_row[col_map[key]] = value
+                    row = working_row
+                    print("-----------------------")
+                    print(row)
+                    print(geometry)
+                    print("-----------------------")
+                        
 
                 # if we need to transform the EPSG, we do it here
                 if target_epsg != source_epsg:
@@ -86,6 +99,7 @@ def dump_to_geospatial_generator(
                         json.loads(geometry),
                     )
                     geometry["coordinates"] = list(geometry["coordinates"])
+                    # Force geometry type to multi to remove chance of conflicts
                     if not geometry["type"].startswith("Multi"):
                         geometry["coordinates"] = [geometry["coordinates"]]
 
@@ -99,6 +113,7 @@ def dump_to_geospatial_generator(
 
                 else:
                     geometry = json.loads(geometry)
+                    # Force geometry type to multi to remove chance of conflicts
                     if not geometry["type"].startswith("Multi"):
                         geometry["coordinates"] = [geometry["coordinates"]]
 
@@ -109,7 +124,6 @@ def dump_to_geospatial_generator(
                         "properties": dict(row),
                         "geometry": geometry,
                     }
-
                 yield (output)
         f.close()
 
@@ -230,9 +244,9 @@ def write_to_json(dump_filepath, output_filepath, datastore_resource, context):
             )
     
     with open(output_filepath, "rb+") as jsonfile:
-            # remove last ", "
-            jsonfile.seek(-2, 2)
-            jsonfile.truncate()
+        # remove last ", "
+        jsonfile.seek(-2, 2)
+        jsonfile.truncate()
 
     with open(output_filepath, "a") as jsonfile:
         # add last closing ]
