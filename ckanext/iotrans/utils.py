@@ -63,16 +63,11 @@ def dump_to_geospatial_generator(
 ):
     '''reads a CKAN CSV dump, creates generator with converted CRS'''
 
-    print("+++++++++++++++++")
-    print(target_format)
-    print("+++++++++++++++++")
-
     # For each row in the dump ...
     with open(dump_filepath, "r") as f:
         reader = csv.DictReader(f, fieldnames=fieldnames)
         next(reader)
         for row in reader:
-            print(row)
 
             # if the data contains a "geometry" column, we know its spatial
             if "geometry" in row.keys():
@@ -84,12 +79,7 @@ def dump_to_geospatial_generator(
                     working_row = {}
                     for key, value in row.items():
                         working_row[col_map[key]] = value
-                    row = working_row
-                    print("-----------------------")
-                    print(row)
-                    print(geometry)
-                    print("-----------------------")
-                        
+                    row = working_row                        
 
                 # if we need to transform the EPSG, we do it here
                 if target_epsg != source_epsg:
@@ -184,7 +174,7 @@ def write_to_csv(dump_filepath, fieldnames, rows_generator):
 
 
 def write_to_zipped_shapefile(fieldnames, dir_path,
-                              resource_metadata, output_filepath):
+                              resource_metadata, output_filepath, col_map):
     '''Zips shp component files together with optional colname mapping csv'''
 
     # put a mapping of full names to truncated names into a csv
@@ -195,7 +185,7 @@ def write_to_zipped_shapefile(fieldnames, dir_path,
         for fieldname in [
             fieldname for fieldname in fieldnames if fieldname != "geometry"
         ]:
-            writer.writerow({"field": fieldname[:10], "name": fieldname})
+            writer.writerow({"field": col_map[fieldname], "name": fieldname})
 
     # put shapefile components into a .zip
     output_filepath = output_filepath.replace(".shp", ".zip")

@@ -286,7 +286,7 @@ def to_file(context, data_dict):
 
                         output_filepath = utils.write_to_zipped_shapefile(
                             fieldnames, dir_path,
-                            resource_metadata, output_filepath
+                            resource_metadata, output_filepath, col_map
                         )
 
                     output = utils.append_to_output(
