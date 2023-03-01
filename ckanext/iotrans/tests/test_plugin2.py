@@ -19,7 +19,7 @@ class TestIOTrans(object):
 
     @pytest.mark.ckan_config("ckan.plugins", "datastore iotrans")
     @pytest.mark.usefixtures("clean_db", "with_plugins")
-    def test_to_file_on_non_spatial_data(self):
+    def test_to_file_on_nonspatial_data(self):
         '''Checks if to_file creates correct non-spatial files'''
 
         # create datastore resource
@@ -45,6 +45,37 @@ class TestIOTrans(object):
 
             # compare new file to correct file
             correct_filepath = test_dir_path + "correct_nonspatial." + format
+            assert filecmp.cmp(test_path, correct_filepath)
+
+    
+    @pytest.mark.ckan_config("ckan.plugins", "datastore iotrans")
+    @pytest.mark.usefixtures("clean_db", "with_plugins")
+    def test_to_file_on_large_nonspatial_data(self):
+        '''Checks if to_file creates correct non-spatial files'''
+
+        # create datastore resource
+        resource = factories.Resource()
+        data = {
+            "resource_id": resource["id"],
+            "force": True,
+            "records": [{"the attr": val} for val in range(0,21000)],
+        }
+        result = helpers.call_action("datastore_create", **data)
+        
+        # run to_file on datastore_resource
+        target_formats = ["csv", "xml", "json"]
+        data = {
+            "resource_id": resource["id"],
+            "target_formats": target_formats,
+        }
+        result = helpers.call_action("to_file", **data)
+
+        # check if outputs are correct
+        for format in target_formats:
+            test_path = result[format+ "-None"]
+
+            # compare new file to correct file
+            correct_filepath = test_dir_path + "correct_large_nonspatial." + format
             assert filecmp.cmp(test_path, correct_filepath)
 
 
@@ -100,6 +131,7 @@ class TestIOTrans(object):
 # make a fixture or something that creates a non-spatial datastore dataset
 # test gpkg, shp creation
 # Multi geometries are managed
+#   point line polygon and their multi versions
 # SHP attributes are not lost
 # SHP .txt mapping is correct
 # test when data has linebreaks inside a text field
