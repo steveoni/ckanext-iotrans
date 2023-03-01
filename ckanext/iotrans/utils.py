@@ -12,49 +12,33 @@ from zipfile import ZipFile
 
 import ckan.plugins.toolkit as tk
 
-def dump_generator(dump_url, fieldnames):
-    '''reads a CKAN dumped CSV, returns a python generator'''
+def dump_generator(resource_id, fieldnames, context):
+    '''reads a CKAN datastore_search calls, returns a python generator'''
+    # init some vars
+    chunk = 20000
+    i = 0
 
-    r = requests.get(dump_url, stream=True)
-    csv.field_size_limit(180000)
+    while True:
+        # get a chunk of records from datastore resource
+        records = tk.get_action("datastore_search")(
+            context, {
+                "resource_id": resource_id,
+                "limit": chunk,
+                "offset": chunk * i,
+                }
+        )["records"]
 
-    # we iterate over the source CSV line by line
-    lines = r.iter_lines(decode_unicode=True)
+        if len(records):
+            print("=====================")
+            print("Chunk " + str(i))
+            print("=====================")            
+            for record in records:  
+                yield record
+            i += 1
+            continue
 
-    # skip the first line of the csv since its a headers
-    next(lines)
-
-    for lineno, line in enumerate(lines, 2):
-
-        # Create in-memory file. We save the row of the incoming CSV file here
-        f = io.StringIO()
-
-        # Write one line to the in-memory file.
-        f.write(line)
-
-        # Seek sends the file handle to the top of the file.
-        f.seek(0)
-
-        # We initiate a CSV reader to read and parse each line of the CSV file
-        reader = csv.reader(f)
-        row = next(reader)
-
-        # if the line is broken mid-record, concat next line to working line
-        while len(row) < len(fieldnames):
-            line += next(lines)
-            f = io.StringIO()
-
-            # Write one line to the in-memory file.
-            f.write(line)
-
-            # Seek sends the file handle to the top of the file.
-            f.seek(0)
-
-            # We initiate a CSV reader to read and parse each line
-            reader = csv.reader(f)
-            row = next(reader)
-
-        yield (row)
+        else:
+            break
 
 
 def dump_to_geospatial_generator(
@@ -138,8 +122,8 @@ def transform_dump_epsg(dump_filepath, fieldnames, source_epsg, target_epsg):
             coordinates = list(row["geometry"]["coordinates"])
             row["geometry"]["coordinates"] = coordinates
 
-            output = row.values()
-            yield (output)
+            #output = row.values()
+            yield (row)
 
         f.close()
 
@@ -166,9 +150,13 @@ def append_to_output(output, target_format, target_epsg, output_filepath):
 
 def write_to_csv(dump_filepath, fieldnames, rows_generator):
     '''Streams a dump into a CSV file'''
+    print("xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx")
+    print("Writing csv ...")
+    print(fieldnames)
+    print("xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx")
     with open(dump_filepath, "w") as f:
-        writer = csv.writer(f)
-        writer.writerow(fieldnames)
+        writer = csv.DictWriter(f, fieldnames)
+        writer.writeheader()
         writer.writerows(rows_generator)
         f.close()
 

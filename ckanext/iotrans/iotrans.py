@@ -31,6 +31,9 @@ def to_file(context, data_dict):
 
     # create a temp directory to store the file we create on disk
     dir_path = tempfile.mkdtemp()
+    print("########################################")
+    print(dir_path)
+    print("########################################")
 
     # all the outputs of this action will be stored here
     output = {}
@@ -71,7 +74,7 @@ def to_file(context, data_dict):
 
     # get fieldnames for the resource
     fieldnames = [field["id"] for field in datastore_resource["fields"]]
-    dump_url = "http://0.0.0.0:8080/datastore/dump/" + data_dict["resource_id"]
+    #dump_url = "http://0.0.0.0:8080/datastore/dump/" + data_dict["resource_id"]
 
     # create working CSV dump filepath. This file will be used for all outputs
     dump_filepath = utils.create_filepath(
@@ -79,7 +82,11 @@ def to_file(context, data_dict):
         data_dict.get("source_epsg", None), "csv"
     )
     utils.write_to_csv(
-        dump_filepath, fieldnames, utils.dump_generator(dump_url, fieldnames)
+        dump_filepath, fieldnames, utils.dump_generator(
+            data_dict["resource_id"], 
+            fieldnames,
+            context,
+        )
     )
 
     # We now have our working dump file. The request tells us how to use it
@@ -154,6 +161,7 @@ def to_file(context, data_dict):
                     output_filepath = utils.create_filepath(
                         dir_path, resource_metadata["name"], target_epsg, "csv"
                     )
+                    print("xxxxxxxxxxxxxxxxxxxxxxxxx 2952 CSV")
                     utils.write_to_csv(
                         output_filepath,
                         fieldnames,
