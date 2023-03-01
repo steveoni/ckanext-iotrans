@@ -1,0 +1,8 @@
+{
+"type": "FeatureCollection",
+"crs": { "type": "name", "properties": { "name": "urn:ogc:def:crs:OGC:1.3:CRS84" } },
+"features": [
+{ "type": "Feature", "properties": { "_id": 1, "the year": 2014 }, "geometry": { "type": "MultiPoint", "coordinates": [ [ -79.556501959626999, 43.632603612174002 ] ] } },
+{ "type": "Feature", "properties": { "_id": 2, "the year": 2013 }, "geometry": { "type": "MultiPoint", "coordinates": [ [ -79.252341959627003, 43.332603432173997 ] ] } }
+]
+}
