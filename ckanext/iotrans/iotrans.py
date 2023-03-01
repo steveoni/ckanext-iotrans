@@ -31,9 +31,6 @@ def to_file(context, data_dict):
 
     # create a temp directory to store the file we create on disk
     dir_path = tempfile.mkdtemp()
-    print("########################################")
-    print(dir_path)
-    print("########################################")
 
     # all the outputs of this action will be stored here
     output = {}
@@ -74,7 +71,6 @@ def to_file(context, data_dict):
 
     # get fieldnames for the resource
     fieldnames = [field["id"] for field in datastore_resource["fields"]]
-    #dump_url = "http://0.0.0.0:8080/datastore/dump/" + data_dict["resource_id"]
 
     # create working CSV dump filepath. This file will be used for all outputs
     dump_filepath = utils.create_filepath(
@@ -83,7 +79,7 @@ def to_file(context, data_dict):
     )
     utils.write_to_csv(
         dump_filepath, fieldnames, utils.dump_generator(
-            data_dict["resource_id"], 
+            data_dict["resource_id"],
             fieldnames,
             context,
         )
@@ -161,7 +157,6 @@ def to_file(context, data_dict):
                     output_filepath = utils.create_filepath(
                         dir_path, resource_metadata["name"], target_epsg, "csv"
                     )
-                    print("xxxxxxxxxxxxxxxxxxxxxxxxx 2952 CSV")
                     utils.write_to_csv(
                         output_filepath,
                         fieldnames,
@@ -252,10 +247,9 @@ def to_file(context, data_dict):
                         # We make a csv mapping truncated to full colnames
                         working_schema = schema
                         col_map = {}
-                        if any([len(field["id"]) >= 10 
-                            for field in datastore_resource["fields"]]):
+                        if any([len(field["id"]) >= 10
+                                for field in datastore_resource["fields"]]):
                             i = 1
-                            working_fieldnames = []
                             working_schema["properties"] = {}
                             for field in datastore_resource["fields"]:
                                 if field["id"] != "geometry":
@@ -318,7 +312,7 @@ def to_file(context, data_dict):
             # JSON
             elif target_format.lower() == "json":
                 utils.write_to_json(dump_filepath,
-                                    output_filepath, 
+                                    output_filepath,
                                     datastore_resource,
                                     context)
                 output = utils.append_to_output(

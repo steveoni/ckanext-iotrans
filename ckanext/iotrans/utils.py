@@ -2,15 +2,14 @@
 '''
 
 import os
-import io
 import csv
 import json
 from fiona.crs import from_epsg
 from fiona.transform import transform_geom
-import requests
 from zipfile import ZipFile
 
 import ckan.plugins.toolkit as tk
+
 
 def dump_generator(resource_id, fieldnames, context):
     '''reads a CKAN datastore_search calls, returns a python generator'''
@@ -29,10 +28,7 @@ def dump_generator(resource_id, fieldnames, context):
         )["records"]
 
         if len(records):
-            print("=====================")
-            print("Chunk " + str(i))
-            print("=====================")            
-            for record in records:  
+            for record in records:
                 yield record
             i += 1
             continue
@@ -42,7 +38,7 @@ def dump_generator(resource_id, fieldnames, context):
 
 
 def dump_to_geospatial_generator(
-    dump_filepath, fieldnames, target_format, source_epsg, target_epsg, 
+    dump_filepath, fieldnames, target_format, source_epsg, target_epsg,
     col_map=None
 ):
     '''reads a CKAN CSV dump, creates generator with converted CRS'''
@@ -59,11 +55,10 @@ def dump_to_geospatial_generator(
 
                 # shapefile column names need to be mapped from col_map
                 if target_format == "shp":
-                    i = 0
                     working_row = {}
                     for key, value in row.items():
                         working_row[col_map[key]] = value
-                    row = working_row                        
+                    row = working_row
 
                 # if we need to transform the EPSG, we do it here
                 if target_epsg != source_epsg:
@@ -73,7 +68,7 @@ def dump_to_geospatial_generator(
                         json.loads(geometry),
                     )
                     geometry["coordinates"] = list(geometry["coordinates"])
-                    # Force geometry type to multi to remove chance of conflicts
+                    # Force geometry type to multi to remove chance of conflict
                     if not geometry["type"].startswith("Multi"):
                         geometry["coordinates"] = [geometry["coordinates"]]
 
@@ -87,7 +82,7 @@ def dump_to_geospatial_generator(
 
                 else:
                     geometry = json.loads(geometry)
-                    # Force geometry type to multi to remove chance of conflicts
+                    # Force geometry type to multi to remove chance of conflict
                     if not geometry["type"].startswith("Multi"):
                         geometry["coordinates"] = [geometry["coordinates"]]
 
@@ -122,7 +117,6 @@ def transform_dump_epsg(dump_filepath, fieldnames, source_epsg, target_epsg):
             coordinates = list(row["geometry"]["coordinates"])
             row["geometry"]["coordinates"] = coordinates
 
-            #output = row.values()
             yield (row)
 
         f.close()
@@ -150,10 +144,6 @@ def append_to_output(output, target_format, target_epsg, output_filepath):
 
 def write_to_csv(dump_filepath, fieldnames, rows_generator):
     '''Streams a dump into a CSV file'''
-    print("xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx")
-    print("Writing csv ...")
-    print(fieldnames)
-    print("xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx")
     with open(dump_filepath, "w") as f:
         writer = csv.DictWriter(f, fieldnames)
         writer.writeheader()
@@ -208,19 +198,19 @@ def write_to_json(dump_filepath, output_filepath, datastore_resource, context):
             )
         # as long as there is more to grab, grab the next chunk
         while len(data_chunk["records"]):
-            
+
             for record in data_chunk["records"]:
                 jsonfile.write(json.dumps(record))
                 jsonfile.write(", ")
             iteration += 1
             data_chunk = tk.get_action("datastore_search")(
-            context, {
-                "resource_id": datastore_resource["resource_id"],
-                "limit": chunk_size,
-                "offset": chunk_size*iteration,
-                }
-            )
-    
+                context, {
+                    "resource_id": datastore_resource["resource_id"],
+                    "limit": chunk_size,
+                    "offset": chunk_size*iteration,
+                    }
+                )
+
     with open(output_filepath, "rb+") as jsonfile:
         # remove last ", "
         jsonfile.seek(-2, 2)
@@ -230,7 +220,6 @@ def write_to_json(dump_filepath, output_filepath, datastore_resource, context):
         # add last closing ]
         jsonfile.write("]")
 
-    
 
 def write_to_xml(dump_filepath, output_filepath):
     '''Stream into an XML file'''
