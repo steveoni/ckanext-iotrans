@@ -113,7 +113,7 @@ class TestIOTrans(object):
             "target_epsgs": target_epsgs,
             "target_formats": target_formats,
         }
-        result = helpers.call_action("to_file", **data)
+        result = helpers.call_action("to_file", **data)        
         # check if outputs are correct
         for format in target_formats:
             for epsg in target_epsgs:
@@ -200,8 +200,7 @@ class TestIOTrans(object):
             "target_epsgs": target_epsgs,
             "target_formats": ["shp"],
         }
-        result = helpers.call_action("to_file", **data)
-        print(result)
+        result = helpers.call_action("to_file", **data)        
 
         # check if outputs are correct
         # dbf files cant be compared this way, so we compare records below
@@ -274,8 +273,7 @@ class TestIOTrans(object):
             "target_epsgs": target_epsgs,
             "target_formats": ["gpkg"],
         }
-        result = helpers.call_action("to_file", **data)
-        print(result)
+        result = helpers.call_action("to_file", **data)        
 
         # check if outputs are correct        
         for epsg in target_epsgs:
@@ -284,12 +282,9 @@ class TestIOTrans(object):
             correct_filepath = (correct_dir_path + "correct_spatial"
                 " - {}.{}").format(epsg, "gpkg")
 
-            # check records one by one
-            print(test_path)
-            print(correct_filepath)
+            # check records one by one                        
             with fiona.open(test_path, "r") as test_gpkg:
-                with fiona.open(correct_filepath) as correct_gpkg:
-                    print(test_gpkg.schema, correct_gpkg.schema)
+                with fiona.open(correct_filepath) as correct_gpkg:                    
                     assert test_gpkg.schema == correct_gpkg.schema
 
                     while True:
@@ -331,18 +326,20 @@ class TestIOTrans(object):
             "target_epsgs": target_epsgs,
             "target_formats": target_formats,
         }
-        result = helpers.call_action("to_file", **data)
-        print(result)
+        result = helpers.call_action("to_file", **data)        
         # check if outputs are correct
         for format in target_formats:
             for epsg in target_epsgs:
                 test_path = result[format + "-" + str(epsg)]                
 
                 # compare new file to correct file
-                correct_filepath = (correct_dir_path + "correct_spatial"
+                correct_filepath = (correct_dir_path + "correct_spatial_multigeometry"
                     " - {}.{}").format(epsg, format)
 
+                with open(test_path, "r") as f:                    
+
                 assert filecmp.cmp(test_path, correct_filepath)
+
 # TODO
 # Multi geometries are managed
 #   point line polygon and their multi versions

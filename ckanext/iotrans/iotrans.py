@@ -75,7 +75,7 @@ def to_file(context, data_dict):
     # create working CSV dump filepath. This file will be used for all outputs
     dump_filepath = utils.create_filepath(
         dir_path, resource_metadata["name"],
-        data_dict.get("source_epsg", None), "csv"
+        data_dict.get("source_epsg", None), "csv-dump"
     )
     utils.write_to_csv(
         dump_filepath, fieldnames, utils.dump_generator(
@@ -139,13 +139,31 @@ def to_file(context, data_dict):
                         }
                     )
 
-                # If the format+epsg combo match the dump, add dump to output
+                # If the format+epsg combo match the dump, 
+                # process and add dump to output.
+                # We run dump through processing to be sure
+                # all formatting is the same among outputs
                 if (
                     target_format.lower() == "csv"
                     and target_epsg == data_dict["source_epsg"]
                 ):
+
+                    output_filepath = utils.create_filepath(
+                        dir_path, resource_metadata["name"], target_epsg, "csv"
+                    )
+                    utils.write_to_csv(
+                        output_filepath,
+                        fieldnames,
+                        utils.transform_dump_epsg(
+                            dump_filepath,
+                            fieldnames,
+                            data_dict["source_epsg"],
+                            target_epsg,
+                        ),
+                    )
+
                     output = utils.append_to_output(
-                        output, target_format, target_epsg, dump_filepath
+                        output, target_format, target_epsg, output_filepath
                     )
 
                 # If format matches the dump but epsg doesnt...

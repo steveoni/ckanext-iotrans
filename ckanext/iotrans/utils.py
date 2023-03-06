@@ -98,7 +98,7 @@ def dump_to_geospatial_generator(
 
 
 def transform_dump_epsg(dump_filepath, fieldnames, source_epsg, target_epsg):
-    '''generator yields dump rows in a different epsg than the source'''
+    '''generator yields dump rows with epsg reformatted/converted'''
 
     # Open the dump CSV into a dictreader
     with open(dump_filepath, "r") as f:
@@ -107,17 +107,19 @@ def transform_dump_epsg(dump_filepath, fieldnames, source_epsg, target_epsg):
         next(dictreader)
 
         # For each fow, convert the CRS
-        for row in dictreader:
+        for row in dictreader:                        
+
             row["geometry"] = transform_geom(
                 from_epsg(source_epsg),
                 from_epsg(target_epsg),
                 json.loads(row["geometry"]),
             )
             # transform the coordinates into a list
-            coordinates = list(row["geometry"]["coordinates"])
+            coordinates = tuple(row["geometry"]["coordinates"])
+            if row["geometry"]["type"].startswith("Multi"):
+                coordinates = tuple([tuple(coord) for coord in coordinates])
             row["geometry"]["coordinates"] = coordinates
-
-            yield (row)
+            yield (row)                        
 
         f.close()
 
@@ -242,8 +244,29 @@ def write_to_xml(dump_filepath, output_filepath):
 
 
 def iotrans_auth_function(context, data_dict=None):
+    '''CKAN auth function - requires authorized uses for certain actions'''
     if context.get("auth_user_obj", False):
         return {'success': True}
     elif not context.get("auth_user_obj", None):
         return {'success': False,
                 'msg': 'This endpoint is for authorized accounts only'}
+
+def nested_tuple_to_list(input):
+    '''Turns tuples nested in geometry objects to lists
+    We use this because Fiona's transform_geom turns coords
+    stored in [] into coords stored in ().
+
+    We want to keep them standardized as stored in []'''
+    output = []
+    if isinstance(input, list) :
+
+        for item in input:                        
+
+            if isinstance(item, list):                
+                for subitem in item:                    
+                    output.append(list(subitem))
+                    
+            elif isinstance(item, tuple):                
+                output.append(list(item))
+
+    return output
