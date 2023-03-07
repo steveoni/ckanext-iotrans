@@ -3,6 +3,7 @@ These function are the top level logic for this extension's CKAN actions
 """
 import ckan.plugins.toolkit as tk
 import tempfile
+import shutil
 import os
 import json
 import fiona
@@ -73,12 +74,25 @@ def to_file(context, data_dict):
     fieldnames = [field["id"] for field in datastore_resource["fields"]]
 
     # create working CSV dump filepath. This file will be used for all outputs
+    # We will use it as an output if we're not dealing w geometric data
+    # We will not use it as an output if we are dealing w geometric data
+    # This is because geometric data gets processed specially, and we want
+    # that processing to be standard across all geometric outputs
+
+    dump_suffix = "csv"
+    if "geometry" in fieldnames:
+        dump_suffix = "csv-dump"
+
     dump_filepath = utils.create_filepath(
-        dir_path, resource_metadata["name"],
-        data_dict.get("source_epsg", None), "csv-dump"
+        dir_path, 
+        resource_metadata["name"],
+        data_dict.get("source_epsg", None), 
+        dump_suffix
     )
     utils.write_to_csv(
-        dump_filepath, fieldnames, utils.dump_generator(
+        dump_filepath, 
+        fieldnames, 
+        utils.dump_generator(
             data_dict["resource_id"],
             fieldnames,
             context,

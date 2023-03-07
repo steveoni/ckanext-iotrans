@@ -53,7 +53,8 @@ class TestIOTrans(object):
     @pytest.mark.ckan_config("ckan.plugins", "datastore iotrans")
     @pytest.mark.usefixtures("clean_db", "with_plugins")
     def test_to_file_on_large_nonspatial_data(self):
-        '''Checks if to_file creates correct non-spatial files'''
+        '''Checks if to_file creates correct non-spatial files
+        if the contents contain more than 20 000 records'''
 
         # create datastore resource
         resource = factories.Resource()
@@ -125,10 +126,11 @@ class TestIOTrans(object):
 
                 assert filecmp.cmp(test_path, correct_filepath)
             
+    
     @pytest.mark.ckan_config("ckan.plugins", "datastore iotrans")
     @pytest.mark.usefixtures("clean_db", "with_plugins")
     def test_to_file_on_large_spatial_data_human_readable_formats(self):
-        '''Checks if to_file creates correct non-spatial files'''
+        '''Checks if to_file makes correct CSV + GEOJSON non-spatial files'''
 
         # create datastore resource
         resource = factories.Resource()
@@ -172,7 +174,12 @@ class TestIOTrans(object):
     @pytest.mark.ckan_config("ckan.plugins", "datastore iotrans")
     @pytest.mark.usefixtures("clean_db", "with_plugins")
     def test_to_file_on_shapefile(self):
-        '''Checks if to_file creates correct shp'''
+        '''Checks if to_file creates a shapefile correctly
+        This checks:
+        - the shapefile's .zip files contents (excluding .dbf)
+        - that the records and attribute names are correct
+        - that the mapping .txt included in the .zip is correct
+        '''
 
         # create datastore resource
         resource = factories.Resource(name="test_spatial")
@@ -297,7 +304,8 @@ class TestIOTrans(object):
     @pytest.mark.ckan_config("ckan.plugins", "datastore iotrans")
     @pytest.mark.usefixtures("clean_db", "with_plugins")
     def test_to_file_on_spatial_multigeometries(self):
-        '''Checks if to_file creates correct non-spatial files'''
+        '''Checks if to_file creates correct spatial files
+        if their geometries include multi-geometries'''
 
         # create datastore resource
         resource = factories.Resource()
@@ -336,14 +344,91 @@ class TestIOTrans(object):
                 correct_filepath = (correct_dir_path + "correct_spatial_multigeometry"
                     " - {}.{}").format(epsg, format)
 
-                with open(test_path, "r") as f:                    
+                assert filecmp.cmp(test_path, correct_filepath)
+    
+
+    @pytest.mark.ckan_config("ckan.plugins", "datastore iotrans")
+    @pytest.mark.usefixtures("clean_db", "with_plugins")
+    def test_to_file_on_nonspatial_data_w_linebreaks(self):
+        '''Checks if to_file creates correct non-spatial files
+        if they have linebreaks in them'''
+
+        # create datastore resource
+        resource = factories.Resource()
+        data = {
+            "resource_id": resource["id"],
+            "force": True,
+            "records": [{"the text": "some text with a line \r\t\n break"}, {"the text": """this is a text with some line breaks. Here's one now!\nAnd another one!"
+                                                                                            2 whole line breaks wow"""}],
+        }
+        result = helpers.call_action("datastore_create", **data)
+        
+        # run to_file on datastore_resource
+        target_formats = ["csv", "xml", "json"]
+        data = {
+            "resource_id": resource["id"],
+            "target_formats": target_formats,
+        }
+        result = helpers.call_action("to_file", **data)
+
+        # check if outputs are correct
+        for format in target_formats:
+            test_path = result[format+ "-None"]
+
+            # compare new file to correct file
+            correct_filepath = correct_dir_path + "correct_nonspatial_linebreaks." + format
+            assert filecmp.cmp(test_path, correct_filepath)
+
+
+    @pytest.mark.ckan_config("ckan.plugins", "datastore iotrans")
+    @pytest.mark.usefixtures("clean_db", "with_plugins")
+    def test_to_file_on_human_readable_spatial_data_w_linebreaks(self):
+        '''Checks if to_file creates correct CSV and GEOJSON spatial files
+        if the files contain linebreaks'''
+
+        # create datastore resource
+        resource = factories.Resource()
+        data = {
+            "resource_id": resource["id"],
+            "force": True,
+            "records": [
+                {
+                    "the text": "some text with a line \r\t\n break", 
+                    "geometry": json.dumps({
+                        "type": "Point", 
+                        "coordinates": [-79.156501959987, 43.232603612123]
+                    }),
+                },
+                {
+                    "the text": """this is a text with some line breaks. Here's one now!\nAnd another one!"
+                                                                                            2 whole line breaks wow""",
+                    "geometry": json.dumps({
+                        "type": "Point", 
+                        "coordinates": [-79.956501959345, 43.932603612987]
+                    }),
+                }
+            ],
+        }
+        result = helpers.call_action("datastore_create", **data)
+        
+        # run to_file on datastore_resource
+        target_formats = ["csv", "geojson"]
+        target_epsgs = [4326, 2952]
+        data = {
+            "resource_id": resource["id"],
+            "source_epsg": 4326,
+            "target_epsgs": target_epsgs,
+            "target_formats": target_formats,
+        }
+        result = helpers.call_action("to_file", **data)
+        print(result)        
+        # check if outputs are correct
+        for format in target_formats:
+            for epsg in target_epsgs:
+                test_path = result[format + "-" + str(epsg)]                
+
+                # compare new file to correct file
+                correct_filepath = (correct_dir_path + "correct_spatial_linebreaks"
+                    " - {}.{}").format(epsg, format)
 
                 assert filecmp.cmp(test_path, correct_filepath)
-
-# TODO
-# Multi geometries are managed
-#   point line polygon and their multi versions
-# SHP attributes are not lost
-# SHP .txt mapping is correct
-# test when data has linebreaks inside a text field
-# large files of over 20000 records for spatial
