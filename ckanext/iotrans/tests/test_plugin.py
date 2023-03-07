@@ -1,125 +1,434 @@
-"""
-Test module for various iotrans functions
-"""
+'''Tests for ckanext-iotrans to run in context of a CKAN instance'''
 
-import ckanext.iotrans.utils as utils
-import filecmp
+
 import json
-import os
 import pytest
+import filecmp
+import os
+import fiona
+import zipfile
+
+import ckan.plugins as p
+import ckan.tests.factories as factories
+import ckan.tests.helpers as helpers
 
 # Define fixed variables
-test_dir_path = os.path.dirname(os.path.realpath(__file__))
-test_tmp_path = "/tmp/iotrans_test_folder/"
-
-# Define fixtures
+correct_dir_path = os.path.dirname(os.path.realpath(__file__)) + "/correct_files/"
 
 
-@pytest.fixture
-def test_dump_json_filepath():
-    # create filepath string
-    correct_dump_csv_filepath = test_dir_path + "/correct_dump.csv"
-    filepath = test_dir_path + "/test_dump.json"
+@pytest.mark.usefixtures("with_request_context")
+class TestIOTrans(object):
 
-    # delete existing test file if it exists
-    if os.path.exists(filepath):
-        os.remove(filepath)
+    @pytest.mark.ckan_config("ckan.plugins", "datastore iotrans")
+    @pytest.mark.usefixtures("clean_db", "with_plugins")
+    def test_to_file_on_nonspatial_data(self):
+        '''Checks if to_file creates correct non-spatial files'''
 
-    # create test file
-    with open(test_dir_path + "/correct_datastore_resource.json") as jsonfile:
-        correct_datastore_resource = json.load(jsonfile)
-        utils.write_to_json(correct_dump_csv_filepath,
-                            filepath,
-                            correct_datastore_resource)
+        # create datastore resource
+        resource = factories.Resource()
+        data = {
+            "resource_id": resource["id"],
+            "force": True,
+            "records": [{"the year": 2014}, {"the year": 2013}],
+        }
+        result = helpers.call_action("datastore_create", **data)
+        
+        # run to_file on datastore_resource
+        target_formats = ["csv", "xml", "json"]
+        data = {
+            "resource_id": resource["id"],
+            "target_formats": target_formats,
+        }
+        result = helpers.call_action("to_file", **data)
 
-    # return location of test file
-    return filepath
+        # check if outputs are correct
+        for format in target_formats:
+            test_path = result[format+ "-None"]
 
+            # compare new file to correct file
+            correct_filepath = correct_dir_path + "correct_nonspatial." + format
+            assert filecmp.cmp(test_path, correct_filepath)
 
-@pytest.fixture
-def test_dump_xml_filepath():
-    # create filepath string
-    correct_dump_csv_filepath = test_dir_path + "/correct_dump.csv"
-    filepath = test_dir_path + "/test_dump.xml"
+    
+    @pytest.mark.ckan_config("ckan.plugins", "datastore iotrans")
+    @pytest.mark.usefixtures("clean_db", "with_plugins")
+    def test_to_file_on_large_nonspatial_data(self):
+        '''Checks if to_file creates correct non-spatial files
+        if the contents contain more than 20 000 records'''
 
-    # delete existing test file if it exists
-    if os.path.exists(filepath):
-        os.remove(filepath)
+        # create datastore resource
+        resource = factories.Resource()
+        data = {
+            "resource_id": resource["id"],
+            "force": True,
+            "records": [{"the attr": val} for val in range(0,21000)],
+        }
+        result = helpers.call_action("datastore_create", **data)
+        
+        # run to_file on datastore_resource
+        target_formats = ["csv", "xml", "json"]
+        data = {
+            "resource_id": resource["id"],
+            "target_formats": target_formats,
+        }
+        result = helpers.call_action("to_file", **data)
 
-    # create test file
-    utils.write_to_xml(correct_dump_csv_filepath, filepath)
+        # check if outputs are correct
+        for format in target_formats:
+            test_path = result[format+ "-None"]
 
-    # return test file location
-    return filepath
-
-
-@pytest.fixture
-def correct_geospatial_generator():
-    correct_spatial_dump_csv_filepath = test_dir_path + "/correct_geo_dump.csv"
-    correct_spatial_csv_dump_fieldnames = [
-        "service_system_manager",
-        "agency",
-        "loc_id",
-        "program_name",
-        "serviceName",
-        "buildingName",
-        "address",
-        "full_address",
-        "major_intersection",
-        "ward",
-        "ward_name",
-        "located_in_school",
-        "school_name",
-        "geometry",
-        "centre_type",
-    ]
-
-    return utils.dump_to_geospatial_generator(
-        correct_spatial_dump_csv_filepath,
-        correct_spatial_csv_dump_fieldnames,
-        "geojson",
-        4326,
-        2952
-    )
+            # compare new file to correct file
+            correct_filepath = correct_dir_path + "correct_large_nonspatial." + format
+            assert filecmp.cmp(test_path, correct_filepath)
 
 
-def test_create_filepath_with_epsg():
-    """test case for utils.create_filepath with an input epsg"""
-    correct_filepath_with_epsg = test_tmp_path + "resource_name - 4326.csv"
-    test_filepath_with_epsg = utils.create_filepath(test_tmp_path + "",
-                                                    "resource_name",
-                                                    4326,
-                                                    "csv")
+    @pytest.mark.ckan_config("ckan.plugins", "datastore iotrans")
+    @pytest.mark.usefixtures("clean_db", "with_plugins")
+    def test_to_file_on_spatial_data_human_readable_formats(self):
+        '''Checks if to_file creates correct non-spatial files'''
 
-    assert correct_filepath_with_epsg == test_filepath_with_epsg
+        # create datastore resource
+        resource = factories.Resource()
+        data = {
+            "resource_id": resource["id"],
+            "force": True,
+            "records": [
+                {"the year": 2014, "geometry": json.dumps({
+                    "type": "Point", 
+                    "coordinates": [-79.556501959627, 43.632603612174]
+                })},
+                {"the year": 2013, "geometry": json.dumps({
+                    "type": "Point", 
+                    "coordinates": [-79.252341959627, 43.332603432174]
+                })}
+            ],
+        }
+        result = helpers.call_action("datastore_create", **data)
+        
+        # run to_file on datastore_resource
+        target_formats = ["csv", "geojson"]
+        target_epsgs = [4326, 2952]
+        data = {
+            "resource_id": resource["id"],
+            "source_epsg": 4326,
+            "target_epsgs": target_epsgs,
+            "target_formats": target_formats,
+        }
+        result = helpers.call_action("to_file", **data)        
+        # check if outputs are correct
+        for format in target_formats:
+            for epsg in target_epsgs:
+                test_path = result[format + "-" + str(epsg)]                
+
+                # compare new file to correct file
+                correct_filepath = (correct_dir_path + "correct_spatial"
+                    " - {}.{}").format(epsg, format)
+
+                assert filecmp.cmp(test_path, correct_filepath)
+            
+    
+    @pytest.mark.ckan_config("ckan.plugins", "datastore iotrans")
+    @pytest.mark.usefixtures("clean_db", "with_plugins")
+    def test_to_file_on_large_spatial_data_human_readable_formats(self):
+        '''Checks if to_file makes correct CSV + GEOJSON non-spatial files'''
+
+        # create datastore resource
+        resource = factories.Resource()
+        data = {
+            "resource_id": resource["id"],
+            "force": True,
+            "records": [
+                {"the year": val, "geometry": json.dumps({
+                    "type": "Point", 
+                    "coordinates": [
+                        -79.556501959 + (val*0.00000001),
+                        43.632603612 - (val*0.00000001)
+                    ]
+                })}
+            for val in range(0, 21000)],
+        }
+        result = helpers.call_action("datastore_create", **data)
+        
+        # run to_file on datastore_resource
+        target_formats = ["csv", "geojson"]
+        target_epsgs = [4326, 2952]
+        data = {
+            "resource_id": resource["id"],
+            "source_epsg": 4326,
+            "target_epsgs": target_epsgs,
+            "target_formats": target_formats,
+        }
+        result = helpers.call_action("to_file", **data)        
+        # check if outputs are correct
+        for format in target_formats:
+            for epsg in target_epsgs:
+                test_path = result[format + "-" + str(epsg)]
+
+                # compare new file to correct file
+                correct_filepath = (correct_dir_path + "correct_large_spatial"
+                    " - {}.{}").format(epsg, format)
+
+                assert filecmp.cmp(test_path, correct_filepath)
+            
+
+    @pytest.mark.ckan_config("ckan.plugins", "datastore iotrans")
+    @pytest.mark.usefixtures("clean_db", "with_plugins")
+    def test_to_file_on_shapefile(self):
+        '''Checks if to_file creates a shapefile correctly
+        This checks:
+        - the shapefile's .zip files contents (excluding .dbf)
+        - that the records and attribute names are correct
+        - that the mapping .txt included in the .zip is correct
+        '''
+
+        # create datastore resource
+        resource = factories.Resource(name="test_spatial")
+        data = {
+            "resource_id": resource["id"],
+            "force": True,
+            "records": [
+                {"the year value column name": 2014, "geometry": json.dumps({
+                    "type": "Point", 
+                    "coordinates": [-79.556501959627, 43.632603612174]
+                })},
+                {"the year value column name": 2013, "geometry": json.dumps({
+                    "type": "Point", 
+                    "coordinates": [-79.252341959627, 43.332603432174]
+                })}
+            ],
+        }
+        result = helpers.call_action("datastore_create", **data)
+        
+        # run to_file on datastore_resource
+        target_epsgs = [4326, 2952]
+        data = {
+            "resource_id": resource["id"],
+            "source_epsg": 4326,
+            "target_epsgs": target_epsgs,
+            "target_formats": ["shp"],
+        }
+        result = helpers.call_action("to_file", **data)        
+
+        # check if outputs are correct
+        # dbf files cant be compared this way, so we compare records below
+        shp_components = ["shp", "cpg", "prj", "shx"] 
+        
+        for epsg in target_epsgs:
+            test_path = result["shp-" + str(epsg)]
+            with zipfile.ZipFile(test_path, "r") as thiszip:
+                # extract zip contents to their current /tmp dir
+                test_folder = "/".join(test_path.split("/")[:-1])
+                thiszip.extractall(test_folder)
+
+                for format in shp_components:
+                    # compare new file to correct file
+                    correct_filepath = (correct_dir_path + "correct_spatial"
+                        " - {}.{}").format(epsg, format)
+
+                    test_path = test_folder + "/test_spatial - {}.{}".format(
+                        str(epsg), 
+                        format,
+                    )
+
+                    assert filecmp.cmp(test_path, correct_filepath)
+
+                # make sure txt mapping file is correct
+                test_txt = test_folder + "/test_spatial fields.csv"
+                correct_txt = correct_dir_path + "correct_spatial fields.csv"
+                assert filecmp.cmp(test_txt, correct_txt)
+
+                # check shapefile records one by one
+                with fiona.open(test_path, "r") as test_shp:
+                    with fiona.open(correct_filepath) as correct_shp:
+                        assert test_shp.schema == correct_shp.schema
+
+                        while True:
+                            try:
+                                assert next(test_shp) == next(correct_shp)
+                            except StopIteration:
+                                break 
 
 
-def test_create_filepath_without_epsg():
-    """test case for utils.create_filepath without an input epsg"""
-    correct_filepath_without_epsg = test_tmp_path + "resource_name.csv"
-    test_filepath_no_epsg = utils.create_filepath(test_tmp_path + "",
-                                                  "resource_name", None, "csv")
+    @pytest.mark.ckan_config("ckan.plugins", "datastore iotrans")
+    @pytest.mark.usefixtures("clean_db", "with_plugins")
+    def test_to_file_on_gpkg(self):
+        '''Checks if to_file creates correct gpkg file'''
 
-    assert correct_filepath_without_epsg == test_filepath_no_epsg
+        # create datastore resource
+        resource = factories.Resource(name="test_spatial")
+        data = {
+            "resource_id": resource["id"],
+            "force": True,
+            "records": [
+                {"the year": 2014, "geometry": json.dumps({
+                    "type": "Point", 
+                    "coordinates": [-79.556501959627, 43.632603612174]
+                })},
+                {"the year": 2013, "geometry": json.dumps({
+                    "type": "Point", 
+                    "coordinates": [-79.252341959627, 43.332603432174]
+                })}
+            ],
+        }
+        result = helpers.call_action("datastore_create", **data)
+        
+        # run to_file on datastore_resource
+        target_epsgs = [4326, 2952]
+        data = {
+            "resource_id": resource["id"],
+            "source_epsg": 4326,
+            "target_epsgs": target_epsgs,
+            "target_formats": ["gpkg"],
+        }
+        result = helpers.call_action("to_file", **data)        
+
+        # check if outputs are correct        
+        for epsg in target_epsgs:
+            test_path = result["gpkg-" + str(epsg)]
+
+            correct_filepath = (correct_dir_path + "correct_spatial"
+                " - {}.{}").format(epsg, "gpkg")
+
+            # check records one by one                        
+            with fiona.open(test_path, "r") as test_gpkg:
+                with fiona.open(correct_filepath) as correct_gpkg:                    
+                    assert test_gpkg.schema == correct_gpkg.schema
+
+                    while True:
+                        try:
+                            assert next(test_gpkg) == next(correct_gpkg)
+                        except StopIteration:
+                            break 
 
 
-#def test_write_to_json(test_dump_json_filepath):
-#    """test case for utils.write_to_json"""
-#    correct_dump_json_filepath = test_dir_path + "/correct_dump.json"
-#    assert filecmp.cmp(test_dump_json_filepath, correct_dump_json_filepath)
+    @pytest.mark.ckan_config("ckan.plugins", "datastore iotrans")
+    @pytest.mark.usefixtures("clean_db", "with_plugins")
+    def test_to_file_on_spatial_multigeometries(self):
+        '''Checks if to_file creates correct spatial files
+        if their geometries include multi-geometries'''
+
+        # create datastore resource
+        resource = factories.Resource()
+        data = {
+            "resource_id": resource["id"],
+            "force": True,
+            "records": [
+                {"the year": 2014, "geometry": json.dumps({
+                    "type": "LineString", 
+                    "coordinates": [[-79.556501919627, 43.632603612711],[-79.526501959627, 43.632603612199]]
+                })},
+                {"the year": 2013, "geometry": json.dumps({
+                    "type": "MultiLineString", 
+                    "coordinates": [[[-79.556501959627, 43.632643612174],[-79.556501951227, 43.632611612174]], [[-79.556501569627, 43.632603645174],[-79.632603612174, 43.632603612174]]]
+                })}
+            ],
+        }
+        result = helpers.call_action("datastore_create", **data)
+        
+        # run to_file on datastore_resource
+        target_formats = ["csv", "geojson"]
+        target_epsgs = [4326, 2952]
+        data = {
+            "resource_id": resource["id"],
+            "source_epsg": 4326,
+            "target_epsgs": target_epsgs,
+            "target_formats": target_formats,
+        }
+        result = helpers.call_action("to_file", **data)        
+        # check if outputs are correct
+        for format in target_formats:
+            for epsg in target_epsgs:
+                test_path = result[format + "-" + str(epsg)]                
+
+                # compare new file to correct file
+                correct_filepath = (correct_dir_path + "correct_spatial_multigeometry"
+                    " - {}.{}").format(epsg, format)
+
+                assert filecmp.cmp(test_path, correct_filepath)
+    
+
+    @pytest.mark.ckan_config("ckan.plugins", "datastore iotrans")
+    @pytest.mark.usefixtures("clean_db", "with_plugins")
+    def test_to_file_on_nonspatial_data_w_linebreaks(self):
+        '''Checks if to_file creates correct non-spatial files
+        if they have linebreaks in them'''
+
+        # create datastore resource
+        resource = factories.Resource()
+        data = {
+            "resource_id": resource["id"],
+            "force": True,
+            "records": [{"the text": "some text with a line \r\t\n break"}, {"the text": """this is a text with some line breaks. Here's one now!\nAnd another one!"
+                                                                                            2 whole line breaks wow"""}],
+        }
+        result = helpers.call_action("datastore_create", **data)
+        
+        # run to_file on datastore_resource
+        target_formats = ["csv", "xml", "json"]
+        data = {
+            "resource_id": resource["id"],
+            "target_formats": target_formats,
+        }
+        result = helpers.call_action("to_file", **data)
+
+        # check if outputs are correct
+        for format in target_formats:
+            test_path = result[format+ "-None"]
+
+            # compare new file to correct file
+            correct_filepath = correct_dir_path + "correct_nonspatial_linebreaks." + format
+            assert filecmp.cmp(test_path, correct_filepath)
 
 
-def test_write_to_xml(test_dump_xml_filepath):
-    """test case for utils.write_to_xml"""
-    correct_dump_xml_filepath = test_dir_path + "/correct_dump.xml"
-    assert filecmp.cmp(test_dump_xml_filepath, correct_dump_xml_filepath)
+    @pytest.mark.ckan_config("ckan.plugins", "datastore iotrans")
+    @pytest.mark.usefixtures("clean_db", "with_plugins")
+    def test_to_file_on_human_readable_spatial_data_w_linebreaks(self):
+        '''Checks if to_file creates correct CSV and GEOJSON spatial files
+        if the files contain linebreaks'''
 
+        # create datastore resource
+        resource = factories.Resource()
+        data = {
+            "resource_id": resource["id"],
+            "force": True,
+            "records": [
+                {
+                    "the text": "some text with a line \r\t\n break", 
+                    "geometry": json.dumps({
+                        "type": "Point", 
+                        "coordinates": [-79.156501959987, 43.232603612123]
+                    }),
+                },
+                {
+                    "the text": """this is a text with some line breaks. Here's one now!\nAnd another one!"
+                                                                                            2 whole line breaks wow""",
+                    "geometry": json.dumps({
+                        "type": "Point", 
+                        "coordinates": [-79.956501959345, 43.932603612987]
+                    }),
+                }
+            ],
+        }
+        result = helpers.call_action("datastore_create", **data)
+        
+        # run to_file on datastore_resource
+        target_formats = ["csv", "geojson"]
+        target_epsgs = [4326, 2952]
+        data = {
+            "resource_id": resource["id"],
+            "source_epsg": 4326,
+            "target_epsgs": target_epsgs,
+            "target_formats": target_formats,
+        }
+        result = helpers.call_action("to_file", **data)
+        print(result)        
+        # check if outputs are correct
+        for format in target_formats:
+            for epsg in target_epsgs:
+                test_path = result[format + "-" + str(epsg)]                
 
-def test_dump_to_geospatial_generator(correct_geospatial_generator):
-    """checks if generator made by utils.dump_to_geospatial_generator
-    contains dicts with valid, non-empty data"""
-    for item in correct_geospatial_generator:
-        assert isinstance(item["properties"], dict)
-        assert len(item["properties"])
-        assert isinstance(item["geometry"], dict)
-        assert len(item["geometry"])
+                # compare new file to correct file
+                correct_filepath = (correct_dir_path + "correct_spatial_linebreaks"
+                    " - {}.{}").format(epsg, format)
+
+                assert filecmp.cmp(test_path, correct_filepath)
