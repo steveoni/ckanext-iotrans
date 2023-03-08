@@ -18,7 +18,7 @@ correct_dir_path = os.path.dirname(os.path.realpath(__file__)) + "/correct_files
 
 
 @pytest.mark.usefixtures("with_request_context")
-class TestIOTrans(object):
+class TestIOTransNonSpatial(object):
 
     @pytest.mark.ckan_config("ckan.plugins", "datastore iotrans")
     @pytest.mark.usefixtures("clean_db", "with_plugins")
