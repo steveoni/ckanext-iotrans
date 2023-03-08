@@ -250,23 +250,3 @@ def iotrans_auth_function(context, data_dict=None):
     elif not context.get("auth_user_obj", None):
         return {'success': False,
                 'msg': 'This endpoint is for authorized accounts only'}
-
-def nested_tuple_to_list(input):
-    '''Turns tuples nested in geometry objects to lists
-    We use this because Fiona's transform_geom turns coords
-    stored in [] into coords stored in ().
-
-    We want to keep them standardized as stored in []'''
-    output = []
-    if isinstance(input, list) :
-
-        for item in input:                        
-
-            if isinstance(item, list):                
-                for subitem in item:                    
-                    output.append(list(subitem))
-                    
-            elif isinstance(item, tuple):                
-                output.append(list(item))
-
-    return output
