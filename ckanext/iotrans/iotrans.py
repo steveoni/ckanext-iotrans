@@ -213,6 +213,8 @@ def to_file(context, data_dict):
                         "timestamp": "str",
                         "float": "float",
                         "int": "int",
+                        "numeric": "float",
+                        "time": "str",
                     }
                     # Get Point, Line, or Polygon from the first row of data
                     geom_type_map = {
