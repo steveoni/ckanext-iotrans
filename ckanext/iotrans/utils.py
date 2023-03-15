@@ -2,6 +2,7 @@
 '''
 
 import os
+import sys
 import csv
 import json
 from fiona.crs import from_epsg
@@ -53,40 +54,42 @@ def dump_to_geospatial_generator(
             if "geometry" in row.keys():
                 geometry = row.pop("geometry")
 
-                # shapefile column names need to be mapped from col_map
-                if target_format == "shp":
-                    working_row = {}
-                    for key, value in row.items():
-                        working_row[col_map[key]] = value
-                    row = working_row
+                if geometry not in ["None", None]:
+                    # shapefile column names need to be mapped from col_map
+                    if target_format == "shp":
+                        working_row = {}
+                        for key, value in row.items():
+                            working_row[col_map[key]] = value
+                        row = working_row
 
-                # if we need to transform the EPSG, we do it here
-                if target_epsg != source_epsg:
-                    geometry = transform_geom(
-                        from_epsg(source_epsg),
-                        from_epsg(target_epsg),
-                        json.loads(geometry),
-                    )
-                    geometry["coordinates"] = list(geometry["coordinates"])
-                    # Force geometry type to multi to remove chance of conflict
-                    if not geometry["type"].startswith("Multi"):
-                        geometry["coordinates"] = [geometry["coordinates"]]
+                    # if we need to transform the EPSG, we do it here
+                    if (target_epsg != source_epsg and 
+                            json.loads(geometry)["coordinates"] not in [[0,0], [None,None]]):
+                        geometry = transform_geom(
+                            from_epsg(source_epsg),
+                            from_epsg(target_epsg),
+                            json.loads(geometry),
+                        )
+                        geometry["coordinates"] = list(geometry["coordinates"])
+                        # Force geometry type to multi to remove chance of conflict
+                        if not geometry["type"].startswith("Multi"):
+                            geometry["coordinates"] = [geometry["coordinates"]]
 
-                        geometry["type"] = "Multi" + geometry["type"]
+                            geometry["type"] = "Multi" + geometry["type"]
 
-                    output = {
-                        "type": "Feature",
-                        "properties": dict(row),
-                        "geometry": geometry,
-                    }
+                        output = {
+                            "type": "Feature",
+                            "properties": dict(row),
+                            "geometry": geometry,
+                        }
 
-                else:
-                    geometry = json.loads(geometry)
-                    # Force geometry type to multi to remove chance of conflict
-                    if not geometry["type"].startswith("Multi"):
-                        geometry["coordinates"] = [geometry["coordinates"]]
+                    else:
+                        geometry = json.loads(geometry)
+                        # Force geometry type to multi to remove chance of conflict
+                        if not geometry["type"].startswith("Multi"):
+                            geometry["coordinates"] = [geometry["coordinates"]]
 
-                        geometry["type"] = "Multi" + geometry["type"]
+                            geometry["type"] = "Multi" + geometry["type"]
 
                     output = {
                         "type": "Feature",
@@ -107,19 +110,32 @@ def transform_dump_epsg(dump_filepath, fieldnames, source_epsg, target_epsg):
         next(dictreader)
 
         # For each fow, convert the CRS
-        for row in dictreader:                        
+        for row in dictreader: 
 
-            row["geometry"] = transform_geom(
-                from_epsg(source_epsg),
-                from_epsg(target_epsg),
-                json.loads(row["geometry"]),
-            )
-            # transform the coordinates into a list
-            coordinates = tuple(row["geometry"]["coordinates"])
-            if row["geometry"]["type"].startswith("Multi"):
-                coordinates = tuple([tuple(coord) for coord in coordinates])
-            row["geometry"]["coordinates"] = coordinates
-            yield (row)                        
+            if json.loads(row["geometry"]).get("coordinates", None) == [None, None]:
+                row["geometry"] = None
+
+            if row["geometry"] not in [None, "None"]:
+
+                if json.loads(row["geometry"]).get("coordinates", None) not in [[0,0], [None,None]]:
+                    row["geometry"] = transform_geom(
+                        from_epsg(source_epsg),
+                        from_epsg(target_epsg),
+                        json.loads(row["geometry"]),
+                    )
+                # reformat empty coords if they arrive to keep them standard
+                elif json.loads(row["geometry"])["coordinates"] == [0,0]:
+                    row["geometry"] = json.loads(row["geometry"])
+                    row["geometry"]["coordinates"] = (0,0)
+            
+                # transform the coordinates into a tuple
+                coordinates = tuple(row["geometry"]["coordinates"])
+
+                if row["geometry"]["type"].startswith("Multi"):
+                    coordinates = tuple([tuple(coord) for coord in coordinates])
+                row["geometry"]["coordinates"] = coordinates
+
+            yield (row)                       
 
         f.close()
 
@@ -146,6 +162,9 @@ def append_to_output(output, target_format, target_epsg, output_filepath):
 
 def write_to_csv(dump_filepath, fieldnames, rows_generator):
     '''Streams a dump into a CSV file'''
+
+    csv.field_size_limit(sys.maxsize)
+    
     with open(dump_filepath, "w") as f:
         writer = csv.DictWriter(f, fieldnames)
         writer.writeheader()
