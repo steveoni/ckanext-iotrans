@@ -62,18 +62,22 @@ def dump_to_geospatial_generator(
                             working_row[col_map[key]] = value
                         row = working_row
 
-                    # if we need to transform the EPSG, we do it here
-                    if (target_epsg != source_epsg and 
-                            json.loads(geometry)["coordinates"] not in [[0,0], [None,None]]):
+                # if we need to transform the EPSG, we do it here
+                if target_epsg != source_epsg and geometry not in ["None", None]:
+                    if json.loads(geometry)["coordinates"] not in  [[0,0],[None, None]]:
                         geometry = transform_geom(
                             from_epsg(source_epsg),
                             from_epsg(target_epsg),
                             json.loads(geometry),
                         )
-                        geometry["coordinates"] = list(geometry["coordinates"])
-                        # Force geometry type to multi to remove chance of conflict
-                        if not geometry["type"].startswith("Multi"):
-                            geometry["coordinates"] = [geometry["coordinates"]]
+
+                    if isinstance(geometry, str):
+                        geometry = json.loads(geometry)
+
+                    geometry["coordinates"] = list(geometry["coordinates"])
+                    # Force geometry type to multi to remove chance of conflict
+                    if not geometry["type"].startswith("Multi"):
+                        geometry["coordinates"] = [geometry["coordinates"]]
 
                             geometry["type"] = "Multi" + geometry["type"]
 
@@ -83,11 +87,12 @@ def dump_to_geospatial_generator(
                             "geometry": geometry,
                         }
 
-                    else:
+                elif geometry not in ["None", None]:
+                    if isinstance(geometry, str):
                         geometry = json.loads(geometry)
-                        # Force geometry type to multi to remove chance of conflict
-                        if not geometry["type"].startswith("Multi"):
-                            geometry["coordinates"] = [geometry["coordinates"]]
+                    # Force geometry type to multi to remove chance of conflict
+                    if not geometry["type"].startswith("Multi"):
+                        geometry["coordinates"] = [geometry["coordinates"]]
 
                             geometry["type"] = "Multi" + geometry["type"]
 
@@ -96,7 +101,12 @@ def dump_to_geospatial_generator(
                         "properties": dict(row),
                         "geometry": geometry,
                     }
+
+                if output["geometry"]["coordinates"] == [[None, None]]:
+                    output["geometry"] = {"type": "MultiPoint", "coordinates":[]}
+
                 yield (output)
+
         f.close()
 
 
@@ -112,30 +122,30 @@ def transform_dump_epsg(dump_filepath, fieldnames, source_epsg, target_epsg):
         # For each fow, convert the CRS
         for row in dictreader: 
 
-            if json.loads(row["geometry"]).get("coordinates", None) == [None, None]:
-                row["geometry"] = None
-
             if row["geometry"] not in [None, "None"]:
-
-                if json.loads(row["geometry"]).get("coordinates", None) not in [[0,0], [None,None]]:
+                if json.loads(row["geometry"])["coordinates"] not in [[0,0],[None, None]]:
                     row["geometry"] = transform_geom(
                         from_epsg(source_epsg),
                         from_epsg(target_epsg),
                         json.loads(row["geometry"]),
                     )
+
+                if isinstance(row["geometry"], str):
+                    row["geometry"] = json.loads(row["geometry"])
+
                 # reformat empty coords if they arrive to keep them standard
                 elif json.loads(row["geometry"])["coordinates"] == [0,0]:
                     row["geometry"] = json.loads(row["geometry"])
                     row["geometry"]["coordinates"] = (0,0)
             
-                # transform the coordinates into a tuple
-                coordinates = tuple(row["geometry"]["coordinates"])
-
+                
+                # transform the coordinates into a list                    
+                coordinates = tuple(row["geometry"].get("coordinates", None))
                 if row["geometry"]["type"].startswith("Multi"):
                     coordinates = tuple([tuple(coord) for coord in coordinates])
                 row["geometry"]["coordinates"] = coordinates
 
-            yield (row)                       
+            yield (row)                        
 
         f.close()
 
