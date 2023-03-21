@@ -11,7 +11,60 @@ from zipfile import ZipFile
 
 import ckan.plugins.toolkit as tk
 
+def transform_epsg(source_epsg, target_epsg, geometry):
+    '''standardize processing when transforming epsg'''
 
+    # if input is a string, make it a json object
+    if isinstance(geometry, str):
+        geometry = json.loads(geometry)
+        assert "coordinates" in geometry.keys(), "No coordinates in geometry!"   
+
+    if not geometry["type"].startswith("Multi"):
+        original_geometry_type = geometry["type"]
+        geometry["type"] = "Multi" + geometry["type"]
+
+    # if input is empty, return it as is
+    if geometry in [None, "None"]:
+        return geometry
+
+    # 0,0 coords need not be transformed - only their brackets changed
+    if geometry["coordinates"] in [[0,0], [[0,0]]]:
+        geometry["coordinates"] == (0,0)
+        return geometry
+
+    # null coords need not be transformed - only their brackets changed
+    if geometry["coordinates"] in [[None,None], [[None,None]]]:
+        geometry["coordinates"] = []
+        return geometry
+
+    # force to multigeometry
+    coordinates = tuple(geometry.get("coordinates", None))
+    if not original_geometry_type.startswith("Multi"):       
+        coordinates = tuple([tuple(coord) for coord in [coordinates]])
+    geometry["coordinates"] = coordinates 
+        
+
+    print("---------------pre process geom")
+    print(geometry)
+
+    # if the source and target epsg dont match, consider transforming them
+    if target_epsg != source_epsg:
+        geometry = transform_geom(
+            from_epsg(source_epsg),
+            from_epsg(target_epsg),
+            geometry,
+        )
+
+        # conversion can change round brackets to square brackets
+        # this converts to round brackets to keep CSVs consistent
+        if geometry["type"].startswith("Multi"):
+            geometry["coordinates"] = tuple([
+                tuple(coord) for coord in geometry["coordinates"]
+            ])
+
+    return geometry
+
+    
 def dump_generator(resource_id, fieldnames, context):
     '''reads a CKAN datastore_search calls, returns a python generator'''
     # init some vars
@@ -51,61 +104,26 @@ def dump_to_geospatial_generator(
         for row in reader:
 
             # if the data contains a "geometry" column, we know its spatial
-            if "geometry" in row.keys():
-                geometry = row.pop("geometry")
+            geometry = row.pop("geometry")
 
-                if geometry not in ["None", None]:
-                    # shapefile column names need to be mapped from col_map
-                    if target_format == "shp":
-                        working_row = {}
-                        for key, value in row.items():
-                            working_row[col_map[key]] = value
-                        row = working_row
+            #if geometry not in ["None", None]:
+                # shapefile column names need to be mapped from col_map
+            if target_format == "shp":
+                working_row = {}
+                for key, value in row.items():
+                    working_row[col_map[key]] = value
+                row = working_row
 
-                # if we need to transform the EPSG, we do it here
-                if target_epsg != source_epsg and geometry not in ["None", None]:
-                    if json.loads(geometry)["coordinates"] not in  [[0,0],[None, None]]:
-                        geometry = transform_geom(
-                            from_epsg(source_epsg),
-                            from_epsg(target_epsg),
-                            json.loads(geometry),
-                        )
+            # if we need to transform the EPSG, we do it here
+            geometry = transform_epsg(source_epsg, target_epsg, geometry)
 
-                    if isinstance(geometry, str):
-                        geometry = json.loads(geometry)
+            output = {
+                "type": "Feature",
+                "properties": dict(row),
+                "geometry": geometry,
+            } 
 
-                    geometry["coordinates"] = list(geometry["coordinates"])
-                    # Force geometry type to multi to remove chance of conflict
-                    if not geometry["type"].startswith("Multi"):
-                        geometry["coordinates"] = [geometry["coordinates"]]
-
-                            geometry["type"] = "Multi" + geometry["type"]
-
-                        output = {
-                            "type": "Feature",
-                            "properties": dict(row),
-                            "geometry": geometry,
-                        }
-
-                elif geometry not in ["None", None]:
-                    if isinstance(geometry, str):
-                        geometry = json.loads(geometry)
-                    # Force geometry type to multi to remove chance of conflict
-                    if not geometry["type"].startswith("Multi"):
-                        geometry["coordinates"] = [geometry["coordinates"]]
-
-                            geometry["type"] = "Multi" + geometry["type"]
-
-                    output = {
-                        "type": "Feature",
-                        "properties": dict(row),
-                        "geometry": geometry,
-                    }
-
-                if output["geometry"]["coordinates"] == [[None, None]]:
-                    output["geometry"] = {"type": "MultiPoint", "coordinates":[]}
-
-                yield (output)
+            yield (output)
 
         f.close()
 
@@ -122,28 +140,11 @@ def transform_dump_epsg(dump_filepath, fieldnames, source_epsg, target_epsg):
         # For each fow, convert the CRS
         for row in dictreader: 
 
-            if row["geometry"] not in [None, "None"]:
-                if json.loads(row["geometry"])["coordinates"] not in [[0,0],[None, None]]:
-                    row["geometry"] = transform_geom(
-                        from_epsg(source_epsg),
-                        from_epsg(target_epsg),
-                        json.loads(row["geometry"]),
-                    )
-
-                if isinstance(row["geometry"], str):
-                    row["geometry"] = json.loads(row["geometry"])
-
-                # reformat empty coords if they arrive to keep them standard
-                elif json.loads(row["geometry"])["coordinates"] == [0,0]:
-                    row["geometry"] = json.loads(row["geometry"])
-                    row["geometry"]["coordinates"] = (0,0)
-            
-                
-                # transform the coordinates into a list                    
-                coordinates = tuple(row["geometry"].get("coordinates", None))
-                if row["geometry"]["type"].startswith("Multi"):
-                    coordinates = tuple([tuple(coord) for coord in coordinates])
-                row["geometry"]["coordinates"] = coordinates
+            row["geometry"] = transform_epsg(
+                source_epsg, 
+                target_epsg, 
+                row["geometry"]
+            )
 
             yield (row)                        
 
