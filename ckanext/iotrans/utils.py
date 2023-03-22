@@ -24,12 +24,12 @@ def transform_epsg(source_epsg, target_epsg, geometry):
         geometry["type"] = "Multi" + geometry["type"]
 
     # if input is empty, return it as is
-    if geometry in [None, "None"]:
+    if geometry in [None, "None"]:        
         return geometry
 
     # 0,0 coords need not be transformed - only their brackets changed
     if geometry["coordinates"] in [[0,0], [[0,0]]]:
-        geometry["coordinates"] == (0,0)
+        geometry["coordinates"] = [[0,0]]                
         return geometry
 
     # null coords need not be transformed - only their brackets changed
@@ -41,10 +41,10 @@ def transform_epsg(source_epsg, target_epsg, geometry):
     coordinates = list(geometry.get("coordinates", None))
     if not original_geometry_type.startswith("Multi"):       
         coordinates = list([list(coord) for coord in [coordinates]])
-    geometry["coordinates"] = coordinates 
+    geometry["coordinates"] = coordinates
 
     # if the source and target epsg dont match, consider transforming them
-    if target_epsg != source_epsg:
+    if target_epsg != source_epsg:        
         geometry = transform_geom(
             from_epsg(source_epsg),
             from_epsg(target_epsg),
@@ -119,6 +119,8 @@ def dump_to_geospatial_generator(
                 "properties": dict(row),
                 "geometry": geometry,
             } 
+                        
+
 
             yield (output)
 
