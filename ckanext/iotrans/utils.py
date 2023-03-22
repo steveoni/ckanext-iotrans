@@ -14,18 +14,18 @@ import ckan.plugins.toolkit as tk
 def transform_epsg(source_epsg, target_epsg, geometry):
     '''standardize processing when transforming epsg'''
 
+    # if input is empty, return it as is
+    if geometry in [None, "None"]:        
+        return None
+
     # if input is a string, make it a json object
     if isinstance(geometry, str):
-        geometry = json.loads(geometry)
+        geometry = json.loads(geometry)    
         assert "coordinates" in geometry.keys(), "No coordinates in geometry!"   
 
     original_geometry_type = geometry["type"]
     if not geometry["type"].startswith("Multi"):
         geometry["type"] = "Multi" + geometry["type"]
-
-    # if input is empty, return it as is
-    if geometry in [None, "None"]:        
-        return geometry
 
     # 0,0 coords need not be transformed - only their brackets changed
     if geometry["coordinates"] in [[0,0], [[0,0]]]:
@@ -120,8 +120,6 @@ def dump_to_geospatial_generator(
                 "geometry": geometry,
             } 
                         
-
-
             yield (output)
 
         f.close()
