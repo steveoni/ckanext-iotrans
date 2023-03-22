@@ -19,8 +19,8 @@ def transform_epsg(source_epsg, target_epsg, geometry):
         geometry = json.loads(geometry)
         assert "coordinates" in geometry.keys(), "No coordinates in geometry!"   
 
+    original_geometry_type = geometry["type"]
     if not geometry["type"].startswith("Multi"):
-        original_geometry_type = geometry["type"]
         geometry["type"] = "Multi" + geometry["type"]
 
     # if input is empty, return it as is
@@ -38,14 +38,10 @@ def transform_epsg(source_epsg, target_epsg, geometry):
         return geometry
 
     # force to multigeometry
-    coordinates = tuple(geometry.get("coordinates", None))
+    coordinates = list(geometry.get("coordinates", None))
     if not original_geometry_type.startswith("Multi"):       
-        coordinates = tuple([tuple(coord) for coord in [coordinates]])
+        coordinates = list([list(coord) for coord in [coordinates]])
     geometry["coordinates"] = coordinates 
-        
-
-    print("---------------pre process geom")
-    print(geometry)
 
     # if the source and target epsg dont match, consider transforming them
     if target_epsg != source_epsg:
@@ -58,9 +54,10 @@ def transform_epsg(source_epsg, target_epsg, geometry):
         # conversion can change round brackets to square brackets
         # this converts to round brackets to keep CSVs consistent
         if geometry["type"].startswith("Multi"):
-            geometry["coordinates"] = tuple([
-                tuple(coord) for coord in geometry["coordinates"]
-            ])
+            geometry["coordinates"] = json.loads(
+                json.dumps(
+                    geometry["coordinates"]).replace("(","[").replace(")","]")
+                )
 
     return geometry
 
