@@ -23,7 +23,7 @@ class TestIOTransSpatial(object):
     @pytest.mark.ckan_config("ckan.plugins", "datastore iotrans")
     @pytest.mark.usefixtures("clean_db", "with_plugins")
     def test_to_file_on_spatial_data_human_readable_formats(self):
-        '''Checks if to_file creates correct non-spatial files'''
+        '''Checks if to_file creates correct spatial files'''
 
         # create datastore resource
         resource = factories.Resource()
@@ -334,6 +334,52 @@ class TestIOTransSpatial(object):
 
                 # compare new file to correct file
                 correct_filepath = (correct_dir_path + "correct_spatial_linebreaks"
+                    " - {}.{}").format(epsg, format)
+
+                assert filecmp.cmp(test_path, correct_filepath)
+
+
+    @pytest.mark.ckan_config("ckan.plugins", "datastore iotrans")
+    @pytest.mark.usefixtures("clean_db", "with_plugins")
+    def test_to_file_on_spatial_data_empty_coordinates(self):
+        '''Checks if to_file behaves correct if input has empty geometry
+        Specifically, it checks if geometry is None, or has empty coords'''
+
+        # create datastore resource
+        resource = factories.Resource()
+        data = {
+            "resource_id": resource["id"],
+            "force": True,
+            "records": [
+                {"the year": 2014, "geometry": json.dumps({
+                    "type": "Point", 
+                    "coordinates": [0,0]
+                })},
+                {"the year": 2012, "geometry": json.dumps({
+                    "type": "Point", 
+                    "coordinates": [None,None]
+                })}
+            ]
+        }
+        result = helpers.call_action("datastore_create", **data)
+        
+        # run to_file on datastore_resource
+        target_formats = ["csv", "geojson"]
+        target_epsgs = [4326, 2952]
+        data = {
+            "resource_id": resource["id"],
+            "source_epsg": 4326,
+            "target_epsgs": target_epsgs,
+            "target_formats": target_formats,
+        }
+        result = helpers.call_action("to_file", **data)        
+        # check if outputs are correct
+        for format in target_formats:
+            for epsg in target_epsgs:
+                test_path = result[format + "-" + str(epsg)]                
+
+                # compare new file to correct file
+                correct_filepath = (correct_dir_path + "correct_empty_spatial"
                     " - {}.{}").format(epsg, format)
 
                 assert filecmp.cmp(test_path, correct_filepath)
