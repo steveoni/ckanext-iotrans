@@ -2,6 +2,8 @@
 These function are the top level logic for this extension's CKAN actions
 """
 import ckan.plugins.toolkit as tk
+from ckan.common import config
+
 import tempfile
 import shutil
 import os
@@ -31,7 +33,7 @@ def to_file(context, data_dict):
     '''
 
     # create a temp directory to store the file we create on disk
-    dir_path = tempfile.mkdtemp()
+    dir_path = tempfile.mkdtemp(dir=config.get("ckan.storage_path"))
 
     # all the outputs of this action will be stored here
     output = {}
@@ -368,7 +370,7 @@ def prune(context, data_dict):
 
     # Taken from:
     # https://github.com/open-data-toronto/iotrans/blob/master/iotrans/utils.py
-    # Deletes input file or a directory as long as its in /tmp
+    # Deletes input file or a directory as long as its in correct dir
 
     if not data_dict.get("path", None):
         raise tk.ValidationError(
@@ -377,11 +379,14 @@ def prune(context, data_dict):
 
     path = data_dict["path"]
 
-    if not data_dict.get("path", None).startswith("/tmp/"):
+    storage_path = config.get("ckan.storage_path")
+    if not data_dict.get("path", None).startswith(storage_path):
         raise tk.ValidationError(
             {
                 "constraints": [
-                    "This action is meant for deleting folders in /tmp/ dir"
+                    "This action is meant for deleting folders in {}".format(
+                        storage_path
+                    )
                 ]
             }
         )
