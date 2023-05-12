@@ -9,6 +9,7 @@ import shutil
 import os
 import json
 import fiona
+import logging
 from fiona.crs import from_epsg
 from . import utils
 
@@ -31,6 +32,8 @@ def to_file(context, data_dict):
         writes desired files to folder in /tmp
         returns a list of filepaths, where the outputs are stored on disk
     '''
+
+    logging("[ckanext-iotrans] Starting iotrans.to_file")
 
     # create a temp directory to store the file we create on disk
     dir_path = tempfile.mkdtemp(dir=config.get("ckan.storage_path"))
@@ -106,6 +109,7 @@ def to_file(context, data_dict):
 
     # For geometric transformations...
     if "geometry" in fieldnames:
+        logging("[ckanext-iotrans] Geometric iotrans transformation started")
 
         if not data_dict.get("source_epsg", None):
             raise tk.ValidationError({"constraints":
@@ -132,6 +136,7 @@ def to_file(context, data_dict):
         for target_epsg in data_dict["target_epsgs"]:
             # for each target format...
             for target_format in data_dict["target_formats"]:
+                logging("[ckanext-iotrans] starting {}-{}".format(target_format, str(target_epsg)))
 
                 # init fiona driver list
                 drivers = {
@@ -281,6 +286,7 @@ def to_file(context, data_dict):
                         # ... w concat'd increasing integer so no duplicates
                         # ... but only if there are colnames >= 10 chars
                         # We make a csv mapping truncated to full colnames
+                        
                         working_schema = schema
                         col_map = {fieldname:fieldname for fieldname in fieldnames}
                         if any([len(field["id"]) >= 10
@@ -333,8 +339,10 @@ def to_file(context, data_dict):
 
     # For non geometric transformations...
     elif "geometry" not in fieldnames:
+        logging("[ckanext-iotrans] Non geometric iotrans transformation started")
         # for each target format...
         for target_format in data_dict["target_formats"]:
+            logging("[ckanext-iotrans] starting {}".format(target_format))
             output_filepath = utils.create_filepath(
                 dir_path, resource_metadata["name"], None, target_format
             )
@@ -399,3 +407,5 @@ def prune(context, data_dict):
         os.rmdir(path)
     else:
         os.remove(path)
+
+    logging("[ckanext-iotrans] pruned ".format(path))
