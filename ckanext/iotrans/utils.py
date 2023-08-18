@@ -20,7 +20,7 @@ def transform_epsg(source_epsg, target_epsg, geometry):
 
     # if input is a string, make it a json object
     if isinstance(geometry, str):
-        geometry = json.loads(geometry)    
+        geometry = json.loads(geometry.replace("'", '"')) # replace '' with ""
         assert "coordinates" in geometry.keys(), "No coordinates in geometry!"   
 
     original_geometry_type = geometry["type"]

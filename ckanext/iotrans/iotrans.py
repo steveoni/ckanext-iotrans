@@ -233,9 +233,9 @@ def to_file(context, data_dict):
                         "MultiPolygon": "MultiPolygon",
                     }
                     # and convert to multi (ex point to multipoint)
-                    geometry_type = geom_type_map[json.loads(
+                    geometry_type = geom_type_map[
                         datastore_resource["records"][0]["geometry"]
-                    )["type"]]
+                    ["type"]]
                     # Get all the field data types (other than geometry)
                     # Map them to fiona data types
                     fields_metadata = {
