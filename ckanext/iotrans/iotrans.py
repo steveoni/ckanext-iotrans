@@ -232,10 +232,8 @@ def to_file(context, data_dict):
                         "MultiLineString": "MultiLineString",
                         "MultiPolygon": "MultiPolygon",
                     }
-                    # and convert to multi (ex point to multipoint)
-                    geometry_type = geom_type_map[
-                        datastore_resource["records"][0]["geometry"]
-                    ["type"]]
+                    # and convert to multi (ex point to multipoint)                    
+                    geometry_type = geom_type_map[json.loads(datastore_resource["records"][0]["geometry"])["type"]]
                     # Get all the field data types (other than geometry)
                     # Map them to fiona data types
                     fields_metadata = {
@@ -295,7 +293,7 @@ def to_file(context, data_dict):
                             working_schema["properties"] = {}
                             for field in datastore_resource["fields"]:
                                 if field["id"] != "geometry":
-                                    type = ckan_to_fiona_typemap[
+                                    this_type = ckan_to_fiona_typemap[
                                             "".join(
                                                 [
                                                     char
@@ -306,7 +304,7 @@ def to_file(context, data_dict):
                                         ]
                                     name = field["id"][:7] + str(i)
                                     col_map[field["id"]] = name
-                                    working_schema["properties"][name] = type
+                                    working_schema["properties"][name] = this_type
                                     i += 1
 
                         with fiona.open(
