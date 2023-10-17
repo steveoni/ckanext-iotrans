@@ -28,7 +28,8 @@ def transform_epsg(source_epsg, target_epsg, geometry):
         geometry["type"] = "Multi" + geometry["type"]
 
     # 0,0 coords need not be transformed - only their brackets changed
-    if geometry["coordinates"] in [[0,0], [[0,0]]]:
+    # Rarely, we receive coords that are near zero - we set those to 0 here using int()
+    if geometry["coordinates"] in [[0,0], [[0,0]]] or [int(x) for x in geometry["coordinates"]] == [0,0]:
         geometry["coordinates"] = [[0,0]]                
         return geometry
 

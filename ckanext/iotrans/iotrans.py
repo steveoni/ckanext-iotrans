@@ -287,7 +287,7 @@ def to_file(context, data_dict):
                         
                         working_schema = schema
                         col_map = {fieldname:fieldname for fieldname in fieldnames}
-                        if any([len(field["id"]) >= 10
+                        if any([len(field["id"]) > 10
                                 for field in datastore_resource["fields"]]):
                             i = 1
                             working_schema["properties"] = {}
