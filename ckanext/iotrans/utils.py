@@ -5,6 +5,7 @@ import os
 import sys
 import csv
 import json
+import codecs
 from fiona.crs import from_epsg
 from fiona.transform import transform_geom
 from zipfile import ZipFile
@@ -95,7 +96,7 @@ def dump_to_geospatial_generator(
     '''reads a CKAN CSV dump, creates generator with converted CRS'''
 
     # For each row in the dump ...
-    with open(dump_filepath, "r") as f:
+    with codecs.open(dump_filepath, "r", encoding="utf-8") as f:
         reader = csv.DictReader(f, fieldnames=fieldnames)
         next(reader)
         for row in reader:
@@ -129,7 +130,7 @@ def transform_dump_epsg(dump_filepath, fieldnames, source_epsg, target_epsg):
     '''generator yields dump rows with epsg reformatted/converted'''
 
     # Open the dump CSV into a dictreader
-    with open(dump_filepath, "r") as f:
+    with codecs.open(dump_filepath, "r", encoding="utf-8") as f:
         dictreader = csv.DictReader(f, fieldnames=fieldnames)
         # skip header
         next(dictreader)
@@ -173,7 +174,7 @@ def write_to_csv(dump_filepath, fieldnames, rows_generator):
 
     csv.field_size_limit(sys.maxsize)
     
-    with open(dump_filepath, "w") as f:
+    with codecs.open(dump_filepath, "w", encoding="utf-8") as f:
         writer = csv.DictWriter(f, fieldnames)
         writer.writeheader()
         writer.writerows(rows_generator)
@@ -186,7 +187,7 @@ def write_to_zipped_shapefile(fieldnames, dir_path,
 
     # put a mapping of full names to truncated names into a csv
     fields_filepath = dir_path + "/" + resource_metadata["name"]+" fields.csv"
-    with open(fields_filepath, "w") as fields_file:
+    with codecs.open(fields_filepath, "w", encoding="utf-8") as fields_file:
         writer = csv.DictWriter(fields_file, fieldnames=["field", "name"])
         writer.writeheader()
         for fieldname in [
@@ -212,7 +213,7 @@ def write_to_zipped_shapefile(fieldnames, dir_path,
 
 def write_to_json(dump_filepath, output_filepath, datastore_resource, context):
     '''Stream into a JSON file by running datastore_search over and over'''
-    with open(output_filepath, "w") as jsonfile:
+    with codecs.open(output_filepath, "w", encoding="utf-8") as jsonfile:
         # write starting bracket
         jsonfile.write("[")
 
@@ -240,12 +241,12 @@ def write_to_json(dump_filepath, output_filepath, datastore_resource, context):
                     }
                 )
 
-    with open(output_filepath, "rb+") as jsonfile:
+    with codecs.open(output_filepath, "rb+", encoding="utf-8") as jsonfile:
         # remove last ", "
         jsonfile.seek(-2, 2)
         jsonfile.truncate()
 
-    with open(output_filepath, "a") as jsonfile:
+    with codecs.open(output_filepath, "a", encoding="utf-8") as jsonfile:
         # add last closing ]
         jsonfile.write("]")
 
@@ -253,9 +254,9 @@ def write_to_json(dump_filepath, output_filepath, datastore_resource, context):
 def write_to_xml(dump_filepath, output_filepath):
     '''Stream into an XML file'''
 
-    with open(dump_filepath, "r") as csvfile:
+    with codecs.open(dump_filepath, "r", encoding="utf-8") as csvfile:
         dictreader = csv.DictReader(csvfile)
-        with open(output_filepath, "a") as xmlfile:
+        with codecs.open(output_filepath, "a", encoding="utf-8") as xmlfile:
             xmlfile.write('<?xml version="1.0" encoding="utf-8"?>')
             xmlfile.write("<DATA>")
             i = 0
