@@ -9,6 +9,7 @@ import codecs
 from fiona.crs import from_epsg
 from fiona.transform import transform_geom
 from zipfile import ZipFile
+import xml.etree.cElementTree as ET
 
 import ckan.plugins.toolkit as tk
 
@@ -256,19 +257,14 @@ def write_to_xml(dump_filepath, output_filepath):
 
     with codecs.open(dump_filepath, "r", encoding="utf-8") as csvfile:
         dictreader = csv.DictReader(csvfile)
-        with codecs.open(output_filepath, "a", encoding="utf-8") as xmlfile:
-            xmlfile.write('<?xml version="1.0" encoding="utf-8"?>')
-            xmlfile.write("<DATA>")
-            i = 0
-            for row in dictreader:
-                xml_row = '<ROW count="{}">'.format(str(i))
-                for key, value in row.items():
-                    xml_row += "<{key}>{value}</{key}>".format(
-                        key=key, value=value)
-                xmlfile.write(xml_row)
-                xmlfile.write("</ROW>")
-                i += 1
-            xmlfile.write("</DATA>")
+        root = ET.Element("DATA")
+        i = 0
+        for csvrow in dictreader:
+            xmlrow = ET.SubElement(root, "ROW", count = str(i))
+            for key, value in csvrow.items():
+                ET.SubElement(xmlrow, key).text = value
+        tree = ET.ElementTree(root)
+        tree.write(output_filepath)            
 
 
 def iotrans_auth_function(context, data_dict=None):
