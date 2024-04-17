@@ -2,6 +2,7 @@
 '''
 
 import os
+import re
 import sys
 import csv
 import json
@@ -261,8 +262,10 @@ def write_to_xml(dump_filepath, output_filepath):
         i = 0
         for csvrow in dictreader:
             xmlrow = ET.SubElement(root, "ROW", count = str(i))
+            i+=1
             for key, value in csvrow.items():
-                ET.SubElement(xmlrow, key).text = value
+                keyname = re.sub(r"[^a-zA-Z0-9-_]","",key)
+                ET.SubElement(xmlrow, keyname).text = value
         tree = ET.ElementTree(root)
         tree.write(output_filepath)            
 
