@@ -1,5 +1,5 @@
-<?xml version="1.0" encoding="utf-8"?><DATA><ROW count="0"><_id>1</_id><the text>some text with a line 
-	
- break</the text></ROW><ROW count="1"><_id>2</_id><the text>this is a text with some line breaks. Here's one now!
+<?xml version='1.0' encoding='utf-8'?>
+<DATA><ROW count="0"><_id>1</_id><thetext>some text with a line 	
+ break</thetext></ROW><ROW count="1"><_id>2</_id><thetext>this is a text with some line breaks. Here's one now!
 And another one!"
-                                                                                            2 whole line breaks wow</the text></ROW></DATA>
+                                                                                            2 whole line breaks wow</thetext></ROW></DATA>

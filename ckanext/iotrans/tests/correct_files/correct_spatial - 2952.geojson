@@ -1,8 +1,9 @@
 {
 "type": "FeatureCollection",
+"name": "test_fixture_resource - 2952",
 "crs": { "type": "name", "properties": { "name": "urn:ogc:def:crs:EPSG::2952" } },
 "features": [
-{ "type": "Feature", "properties": { "_id": 1, "the year": 2014 }, "geometry": { "type": "MultiPoint", "coordinates": [ [ 300240.778159003995825, 4832519.701742178760469 ] ] } },
-{ "type": "Feature", "properties": { "_id": 2, "the year": 2013 }, "geometry": { "type": "MultiPoint", "coordinates": [ [ 324883.005440749053378, 4799220.605412323027849 ] ] } }
+{ "type": "Feature", "properties": { "_id": 1, "the year": 2014 }, "geometry": { "type": "MultiPoint", "coordinates": [ [ 300241.042759567208122, 4832518.749373913742602 ] ] } },
+{ "type": "Feature", "properties": { "_id": 2, "the year": 2013 }, "geometry": { "type": "MultiPoint", "coordinates": [ [ 324883.264890005404595, 4799219.658466010354459 ] ] } }
 ]
 }

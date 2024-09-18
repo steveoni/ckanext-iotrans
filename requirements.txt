@@ -5,4 +5,4 @@ munch==2.3.2
 requests==2.28.1
 six==1.16.0
 certifi
-Fiona==1.8.6
+Fiona==1.10.0

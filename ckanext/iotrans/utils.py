@@ -11,8 +11,28 @@ from fiona.crs import from_epsg
 from fiona.transform import transform_geom
 from zipfile import ZipFile
 import xml.etree.cElementTree as ET
+from fiona import Geometry
+from typing import Dict
 
 import ckan.plugins.toolkit as tk
+
+def _geometry_to_json(geom: Geometry) -> str:
+    """_geometry_to_json
+
+    :param geom: the fiona geometry
+    :type geom: Geometry
+    :return: geojson compliant JSON string
+    :rtype: str
+    """
+    geom_dict = dict(geom)
+
+    # GeoJSON spec does not indicate a case for `null` to be valid json (only mentions
+    # it to be a list of geometries or DNE in the json at all.)
+    # So if it is explicitly None, remove it before jsonifying
+    if 'geometries' in geom_dict and geom_dict.get("geometries") is None:
+        del geom_dict["geometries"]
+
+    return json.dumps(geom_dict)
 
 def transform_epsg(source_epsg, target_epsg, geometry):
     '''standardize processing when transforming epsg'''
@@ -140,24 +160,25 @@ def transform_dump_epsg(dump_filepath, fieldnames, source_epsg, target_epsg):
         # For each fow, convert the CRS
         for row in dictreader: 
 
-            row["geometry"] = transform_epsg(
+            geometry = transform_epsg(
                 source_epsg, 
                 target_epsg, 
                 row["geometry"]
             )
-
+            row["geometry"] = _geometry_to_json(geometry)
             yield (row)                        
 
         f.close()
 
 
-def create_filepath(dir_path, resource_name, epsg, format):
+
+def create_filepath(dir_path, resource_name, epsg, file_format):
     '''Creates a filepath using input resource name, and desired format/epsg'''
 
     epsg_suffix = " - " + str(epsg) if epsg else ""
     return os.path.join(
         dir_path,
-        "{0}{1}.{2}".format(resource_name, epsg_suffix, format.lower())
+        "{0}{1}.{2}".format(resource_name, epsg_suffix, file_format.lower())
     )
 
 
@@ -173,7 +194,6 @@ def append_to_output(output, target_format, target_epsg, output_filepath):
 
 def write_to_csv(dump_filepath, fieldnames, rows_generator):
     '''Streams a dump into a CSV file'''
-
     csv.field_size_limit(sys.maxsize)
     
     with codecs.open(dump_filepath, "w", encoding="utf-8") as f:
@@ -267,7 +287,7 @@ def write_to_xml(dump_filepath, output_filepath):
                 keyname = re.sub(r"[^a-zA-Z0-9-_]","",key)
                 ET.SubElement(xmlrow, keyname).text = value
         tree = ET.ElementTree(root)
-        tree.write(output_filepath)            
+        tree.write(output_filepath, encoding='utf-8', xml_declaration=True)            
 
 
 def iotrans_auth_function(context, data_dict=None):

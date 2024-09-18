@@ -1,7 +1,6 @@
 _id,the text,geometry
-1,"some text with a line 
-	
- break","{'type': 'MultiPoint', 'coordinates': [[-79.156501959987, 43.232603612123]]}"
+1,"some text with a line 	
+ break","{""type"": ""MultiPoint"", ""coordinates"": [[-79.156501959987, 43.232603612123]]}"
 2,"this is a text with some line breaks. Here's one now!
 And another one!""
-                                                                                            2 whole line breaks wow","{'type': 'MultiPoint', 'coordinates': [[-79.956501959345, 43.932603612987]]}"
+                                                                                            2 whole line breaks wow","{""type"": ""MultiPoint"", ""coordinates"": [[-79.956501959345, 43.932603612987]]}"

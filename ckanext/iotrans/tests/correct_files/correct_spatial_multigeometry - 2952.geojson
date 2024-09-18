@@ -1,8 +1,9 @@
 {
 "type": "FeatureCollection",
+"name": "test_fixture_resource - 2952",
 "crs": { "type": "name", "properties": { "name": "urn:ogc:def:crs:EPSG::2952" } },
 "features": [
-{ "type": "Feature", "properties": { "_id": 1, "the year": 2014 }, "geometry": { "type": "MultiLineString", "coordinates": [ [ [ 300240.781386700691655, 4832519.701799639500678 ], [ 302661.519968490116298, 4832518.491806010715663 ] ] ] } },
-{ "type": "Feature", "properties": { "_id": 2, "the year": 2013 }, "geometry": { "type": "MultiLineString", "coordinates": [ [ [ 300240.781182856182568, 4832524.145500719547272 ], [ 300240.779441581689753, 4832520.590493422932923 ] ], [ [ 300240.809631142241415, 4832519.705386864952743 ], [ 294100.029402483545709, 4832526.694402238354087 ] ] ] } }
+{ "type": "Feature", "properties": { "_id": 1, "the year": 2014 }, "geometry": { "type": "MultiLineString", "coordinates": [ [ [ 300241.045987263380084, 4832518.74943137448281 ], [ 302661.784138261340559, 4832517.539384571835399 ] ] ] } },
+{ "type": "Feature", "properties": { "_id": 2, "the year": 2013 }, "geometry": { "type": "MultiLineString", "coordinates": [ [ [ 300241.04578351759119, 4832523.193131663836539 ], [ 300241.044042164052371, 4832519.638125000521541 ] ], [ [ 300241.074231700564269, 4832518.753018600866199 ], [ 294100.295095698907971, 4832525.742167013697326 ] ] ] } }
 ]
 }

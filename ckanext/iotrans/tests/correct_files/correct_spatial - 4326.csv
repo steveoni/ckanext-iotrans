@@ -1,3 +1,3 @@
 _id,the year,geometry
-1,2014,"{'type': 'MultiPoint', 'coordinates': [[-79.556501959627, 43.632603612174]]}"
-2,2013,"{'type': 'MultiPoint', 'coordinates': [[-79.252341959627, 43.332603432174]]}"
+1,2014,"{""type"": ""MultiPoint"", ""coordinates"": [[-79.556501959627, 43.632603612174]]}"
+2,2013,"{""type"": ""MultiPoint"", ""coordinates"": [[-79.252341959627, 43.332603432174]]}"
