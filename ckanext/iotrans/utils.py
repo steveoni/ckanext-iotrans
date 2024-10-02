@@ -158,15 +158,17 @@ def transform_dump_epsg(dump_filepath, fieldnames, source_epsg, target_epsg):
         next(dictreader)
 
         # For each fow, convert the CRS
-        for row in dictreader: 
+        for row in dictreader:
 
             geometry = transform_epsg(
                 source_epsg, 
                 target_epsg, 
                 row["geometry"]
             )
-            row["geometry"] = _geometry_to_json(geometry)
-            yield (row)                        
+            row["geometry"] = (
+                _geometry_to_json(geometry) if geometry is not None else None
+            )
+            yield (row)
 
         f.close()
 
