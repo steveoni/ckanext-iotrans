@@ -1,8 +1,1 @@
-attrs==21.2.0
-click-plugins==1.0.4
-cligj==0.5.0
-munch==2.3.2
-requests==2.28.1
-six==1.16.0
-certifi
 Fiona==1.10.0
