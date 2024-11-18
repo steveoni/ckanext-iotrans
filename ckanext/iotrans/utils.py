@@ -13,6 +13,7 @@ from zipfile import ZipFile
 import xml.etree.cElementTree as ET
 from fiona import Geometry
 from typing import Dict
+from concurrent.futures import ProcessPoolExecutor
 
 import ckan.plugins.toolkit as tk
 
@@ -112,40 +113,33 @@ def dump_generator(resource_id, fieldnames, context):
 
 
 def dump_to_geospatial_generator(
-    dump_filepath, fieldnames, target_format, source_epsg, target_epsg,
-    col_map=None
+    dump_filepath, fieldnames, target_format, source_epsg, target_epsg, col_map=None
 ):
-    '''reads a CKAN CSV dump, creates generator with converted CRS'''
+    """Streamlines CRS conversion and row processing for geospatial data."""
 
-    # For each row in the dump ...
     with codecs.open(dump_filepath, "r", encoding="utf-8") as f:
         reader = csv.DictReader(f, fieldnames=fieldnames)
-        next(reader)
-        for row in reader:
+        next(reader)  # Skip header
 
-            # if the data contains a "geometry" column, we know its spatial
+        for row in reader:
             geometry = row.pop("geometry")
 
-            #if geometry not in ["None", None]:
-                # shapefile column names need to be mapped from col_map
-            if target_format == "shp":
-                working_row = {}
-                for key, value in row.items():
-                    working_row[col_map[key]] = value
-                row = working_row
+            # Process only valid geometries
+            if geometry and geometry != "None":
+                # Transform geometry CRS if needed
+                geometry = transform_epsg(source_epsg, target_epsg, geometry)
 
-            # if we need to transform the EPSG, we do it here
-            geometry = transform_epsg(source_epsg, target_epsg, geometry)
+                # Adjust shapefile-specific column mapping
+                if target_format == "shp" and col_map:
+                    row = {col_map.get(k, k): v for k, v in row.items()}
 
-            output = {
-                "type": "Feature",
-                "properties": dict(row),
-                "geometry": geometry,
-            } 
-                        
-            yield (output)
+                # Yield a single feature to avoid keeping multiple records in memory
+                yield {
+                    "type": "Feature",
+                    "properties": row,
+                    "geometry": geometry,
+                }
 
-        f.close()
 
 
 def transform_dump_epsg(dump_filepath, fieldnames, source_epsg, target_epsg):
@@ -157,20 +151,23 @@ def transform_dump_epsg(dump_filepath, fieldnames, source_epsg, target_epsg):
         # skip header
         next(dictreader)
 
-        # For each fow, convert the CRS
-        for row in dictreader: 
-
-            geometry = transform_epsg(
-                source_epsg, 
-                target_epsg, 
-                row["geometry"]
-            )
-            row["geometry"] = _geometry_to_json(geometry)
-            yield (row)                        
-
-        f.close()
+        with ProcessPoolExecutor() as executor:
+            tasks = ((row, source_epsg, target_epsg) for row in dictreader)
+            # Process each row in parallel using multiple processes
+            for row in executor.map(transform_row_epsg_wrapper, tasks):
+                yield row
 
 
+def transform_row_epsg_wrapper(row_source_epsg_target_epsg):
+    row, source_epsg, target_epsg = row_source_epsg_target_epsg
+    return transform_row_epsg(row, source_epsg, target_epsg)
+
+def transform_row_epsg(row, source_epsg, target_epsg):
+    '''Helper function to transform EPSG for each row'''
+
+    geometry = transform_epsg(source_epsg, target_epsg, row["geometry"])
+    row["geometry"] = _geometry_to_json(geometry)
+    return row
 
 def create_filepath(dir_path, resource_name, epsg, file_format):
     '''Creates a filepath using input resource name, and desired format/epsg'''
@@ -200,7 +197,6 @@ def write_to_csv(dump_filepath, fieldnames, rows_generator):
         writer = csv.DictWriter(f, fieldnames)
         writer.writeheader()
         writer.writerows(rows_generator)
-        f.close()
 
 
 def write_to_zipped_shapefile(fieldnames, dir_path,

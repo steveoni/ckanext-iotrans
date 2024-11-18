@@ -260,16 +260,14 @@ def to_file(context, data_dict):
                             driver=drivers[target_format],
                             crs=from_epsg(target_epsg),
                         ) as outlayer:
-                            outlayer.writerecords(
-                                utils.dump_to_geospatial_generator(
-                                    dump_filepath,
-                                    fieldnames,
-                                    target_format,
-                                    data_dict["source_epsg"],
-                                    target_epsg,
-                                )
-                            )
-                            outlayer.close()
+                            for feature in utils.dump_to_geospatial_generator(
+                                dump_filepath,
+                                fieldnames,
+                                target_format,
+                                data_dict["source_epsg"],
+                                target_epsg,
+                            ):
+                                outlayer.write(feature)
 
                     elif target_format.lower() == "shp":
                         # Shapefiles are special
@@ -314,17 +312,15 @@ def to_file(context, data_dict):
                             driver=drivers[target_format],
                             crs=from_epsg(target_epsg),
                         ) as outlayer:
-                            outlayer.writerecords(
-                                utils.dump_to_geospatial_generator(
-                                    dump_filepath,
-                                    fieldnames,
-                                    target_format,
-                                    data_dict["source_epsg"],
-                                    target_epsg,
-                                    col_map
-                                )
-                            )
-                            outlayer.close()
+                            for feature in utils.dump_to_geospatial_generator(
+                                dump_filepath,
+                                fieldnames,
+                                target_format,
+                                data_dict["source_epsg"],
+                                target_epsg,
+                                col_map,
+                            ):
+                                outlayer.write(feature)
 
                         output_filepath = utils.write_to_zipped_shapefile(
                             fieldnames, dir_path,
