@@ -15,6 +15,20 @@ class IotransPlugin(plugins.SingletonPlugin):
     for example, in this CKAN extension code
     """
     plugins.implements(plugins.IActions)
+    plugins.implements(plugins.IClick)
+
+
+    def get_commands(self):
+        import click
+        @click.command()
+        def ioprofile():
+            v= iotrans.to_file({"ignore_auth": True}, {
+                "resource_id": "695cbc0a-480c-493c-8279-3c0537e4e950",
+                "source_epsg": 4326,
+                 "target_epsgs": [4326, 2952],
+                 "target_formats": ["shp","gpkg", "geojson"]})
+            print(v)
+        return [ioprofile]
 
     def get_actions(self):
         return {

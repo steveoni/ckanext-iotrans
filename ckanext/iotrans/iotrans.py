@@ -12,8 +12,12 @@ import fiona
 import logging
 from fiona.crs import from_epsg
 from . import utils
+import sys
+from memory_profiler import profile
 
 
+
+@profile
 @tk.side_effect_free
 def to_file(context, data_dict):
     '''
@@ -304,7 +308,6 @@ def to_file(context, data_dict):
                                     col_map[field["id"]] = name
                                     working_schema["properties"][name] = this_type
                                     i += 1
-
                         with fiona.open(
                             output_filepath,
                             "w",
@@ -312,16 +315,18 @@ def to_file(context, data_dict):
                             driver=drivers[target_format],
                             crs=from_epsg(target_epsg),
                         ) as outlayer:
-                            for feature in utils.dump_to_geospatial_generator(
-                                dump_filepath,
-                                fieldnames,
-                                target_format,
-                                data_dict["source_epsg"],
-                                target_epsg,
-                                col_map,
-                            ):
-                                outlayer.write(feature)
-
+                           outlayer.writerecords(
+                                utils.dump_to_geospatial_generator(
+                                    dump_filepath,
+                                    fieldnames,
+                                    target_format,
+                                    data_dict["source_epsg"],
+                                    target_epsg,
+                                    col_map
+                                )
+                            )
+                                
+                        # sys.exit(1)
                         output_filepath = utils.write_to_zipped_shapefile(
                             fieldnames, dir_path,
                             resource_metadata, output_filepath, col_map
