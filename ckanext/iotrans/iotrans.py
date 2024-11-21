@@ -1,6 +1,7 @@
 """the to_file() and prune() functions
 These function are the top level logic for this extension's CKAN actions
 """
+
 import ckan.plugins.toolkit as tk
 from ckan.common import config
 
@@ -16,7 +17,7 @@ from . import utils
 
 @tk.side_effect_free
 def to_file(context, data_dict):
-    '''
+    """
     inputs:
         resource_id: CKAN datastore resource ID
         source_epsg: source EPSG of resource ID, if data is spatial
@@ -31,7 +32,7 @@ def to_file(context, data_dict):
     outputs:
         writes desired files to folder in /tmp
         returns a list of filepaths, where the outputs are stored on disk
-    '''
+    """
 
     logging.info("[ckanext-iotrans] Starting iotrans.to_file")
 
@@ -50,19 +51,13 @@ def to_file(context, data_dict):
     # make sure target_formats is provided in a list
     if not isinstance(data_dict.get("target_formats", None), list):
         raise tk.ValidationError(
-            {
-                "constraints": [
-                    "Required input 'target_formats' be a list of strings"
-                ]
-            }
+            {"constraints": ["Required input 'target_formats' be a list of strings"]}
         )
-
     # Make sure the resource id provided is for a datastore resource
     resource_metadata = tk.get_action("resource_show")(
         context, {"id": data_dict["resource_id"]}
     )
-    if (resource_metadata.get("datastore_active", None) in
-            ["false", "False", False]):
+    if resource_metadata.get("datastore_active", None) in ["false", "False", False]:
         raise tk.ValidationError(
             {
                 "constraints": [
@@ -89,19 +84,19 @@ def to_file(context, data_dict):
         dump_suffix = "csv-dump"
 
     dump_filepath = utils.create_filepath(
-        dir_path, 
+        dir_path,
         resource_metadata["name"],
-        data_dict.get("source_epsg", None), 
-        dump_suffix
+        data_dict.get("source_epsg", None),
+        dump_suffix,
     )
     utils.write_to_csv(
-        dump_filepath, 
-        fieldnames, 
+        dump_filepath,
+        fieldnames,
         utils.dump_generator(
             data_dict["resource_id"],
             fieldnames,
             context,
-        )
+        ),
     )
 
     # We now have our working dump file. The request tells us how to use it
@@ -112,8 +107,7 @@ def to_file(context, data_dict):
         logging.info("[ckanext-iotrans] Geometric iotrans transformation started")
 
         if not data_dict.get("source_epsg", None):
-            raise tk.ValidationError({"constraints":
-                                     ["Input 'source_epsg' required!"]})
+            raise tk.ValidationError({"constraints": ["Input 'source_epsg' required!"]})
 
         # make sure inputs are correctly formatted
         if isinstance(data_dict.get("target_epsgs", None), int):
@@ -122,21 +116,20 @@ def to_file(context, data_dict):
             data_dict["target_formats"] = list(data_dict["target_formats"])
 
         # throw an error if input target_epsgs is not a list of integers
-        if not all([isinstance(item, int)
-                    for item in data_dict["target_epsgs"]]):
+        if not all([isinstance(item, int) for item in data_dict["target_epsgs"]]):
             raise tk.ValidationError(
-                {
-                    "constraints": [
-                        "Input 'target_epsgs' needs to be a list of integers"
-                    ]
-                }
+                {"constraints": ["Input 'target_epsgs' needs to be a list of integers"]}
             )
 
         # for each target EPSG...
         for target_epsg in data_dict["target_epsgs"]:
             # for each target format...
             for target_format in data_dict["target_formats"]:
-                logging.info("[ckanext-iotrans] starting {}-{}".format(target_format, str(target_epsg)))
+                logging.info(
+                    "[ckanext-iotrans] starting {}-{}".format(
+                        target_format, str(target_epsg)
+                    )
+                )
 
                 # init fiona driver list
                 drivers = {
@@ -150,9 +143,10 @@ def to_file(context, data_dict):
                 ):
                     raise tk.ValidationError(
                         {
-                            "constraints": ['''
+                            "constraints": [
+                                """
                                 "Input target_format '{target_format}' must be
-                                in the following: {accepted_formats}'''.format(
+                                in the following: {accepted_formats}""".format(
                                     target_format=target_format,
                                     accepted_formats=", ".join(drivers.keys()),
                                 )
@@ -160,7 +154,7 @@ def to_file(context, data_dict):
                         }
                     )
 
-                # If the format+epsg combo match the dump, 
+                # If the format+epsg combo match the dump,
                 # process and add dump to output.
                 # We run dump through processing to be sure
                 # all formatting is the same among outputs
@@ -232,25 +226,29 @@ def to_file(context, data_dict):
                         "MultiLineString": "MultiLineString",
                         "MultiPolygon": "MultiPolygon",
                     }
-                    # and convert to multi (ex point to multipoint) and single quotes to double quotes                 
-                    geometry_type = geom_type_map[json.loads(datastore_resource["records"][0]["geometry"].replace("'", '"'))["type"]]
+                    # and convert to multi (ex point to multipoint) and single quotes to double quotes
+                    geometry_type = geom_type_map[
+                        json.loads(
+                            datastore_resource["records"][0]["geometry"].replace(
+                                "'", '"'
+                            )
+                        )["type"]
+                    ]
                     # Get all the field data types (other than geometry)
                     # Map them to fiona data types
                     fields_metadata = {
                         field["id"]: ckan_to_fiona_typemap[
                             "".join(
-                                [char for char in field["type"]
-                                    if not char.isdigit()]
+                                [char for char in field["type"] if not char.isdigit()]
                             )
                         ]
                         for field in datastore_resource["fields"]
                         if field["id"] != "geometry"
                     }
-                    schema = {"geometry": geometry_type,
-                              "properties": fields_metadata}
+                    schema = {"geometry": geometry_type, "properties": fields_metadata}
                     output_filepath = utils.create_filepath(
-                        dir_path, resource_metadata["name"],
-                        target_epsg, target_format)
+                        dir_path, resource_metadata["name"], target_epsg, target_format
+                    )
 
                     if target_format.lower() != "shp":
                         with fiona.open(
@@ -284,24 +282,28 @@ def to_file(context, data_dict):
                         # ... w concat'd increasing integer so no duplicates
                         # ... but only if there are colnames >= 10 chars
                         # We make a csv mapping truncated to full colnames
-                        
+
                         working_schema = schema
-                        col_map = {fieldname:fieldname for fieldname in fieldnames}
-                        if any([len(field["id"]) > 10
-                                for field in datastore_resource["fields"]]):
+                        col_map = {fieldname: fieldname for fieldname in fieldnames}
+                        if any(
+                            [
+                                len(field["id"]) > 10
+                                for field in datastore_resource["fields"]
+                            ]
+                        ):
                             i = 1
                             working_schema["properties"] = {}
                             for field in datastore_resource["fields"]:
                                 if field["id"] != "geometry":
                                     this_type = ckan_to_fiona_typemap[
-                                            "".join(
-                                                [
-                                                    char
-                                                    for char in field["type"]
-                                                    if not char.isdigit()
-                                                ]
-                                            )
-                                        ]
+                                        "".join(
+                                            [
+                                                char
+                                                for char in field["type"]
+                                                if not char.isdigit()
+                                            ]
+                                        )
+                                    ]
                                     name = field["id"][:7] + str(i)
                                     col_map[field["id"]] = name
                                     working_schema["properties"][name] = this_type
@@ -321,14 +323,17 @@ def to_file(context, data_dict):
                                     target_format,
                                     data_dict["source_epsg"],
                                     target_epsg,
-                                    col_map
+                                    col_map,
                                 )
                             )
                             outlayer.close()
 
                         output_filepath = utils.write_to_zipped_shapefile(
-                            fieldnames, dir_path,
-                            resource_metadata, output_filepath, col_map
+                            fieldnames,
+                            dir_path,
+                            resource_metadata,
+                            output_filepath,
+                            col_map,
                         )
 
                     output = utils.append_to_output(
@@ -353,10 +358,9 @@ def to_file(context, data_dict):
 
             # JSON
             elif target_format.lower() == "json":
-                utils.write_to_json(dump_filepath,
-                                    output_filepath,
-                                    datastore_resource,
-                                    context)
+                utils.write_to_json(
+                    dump_filepath, output_filepath, datastore_resource, context
+                )
                 output = utils.append_to_output(
                     output, target_format, None, output_filepath
                 )
