@@ -13,11 +13,9 @@ import ckan.tests.helpers as helpers
 import requests
 from memory_profiler import memory_usage, profile
 
-import six
-import ckan.tests.factories as factories
+from pathlib import Path
+import csv
 
-import os
-from ckan.lib import uploader as ckan_uploader
 from werkzeug.datastructures import FileStorage
 
 from typing import Generator, List
@@ -57,10 +55,6 @@ def solarto_csv(tmp_path_factory):
     return tmp_path, solarto_fields
 
 
-from pathlib import Path
-import csv
-
-
 def chunk_csv(file_name: Path, row_chunk_size: int) -> Generator[List, None, None]:
     lim = float("inf")
     with open(file_name, "r") as csvfile:
@@ -85,7 +79,7 @@ def chunk_csv(file_name: Path, row_chunk_size: int) -> Generator[List, None, Non
 @pytest.fixture(scope="session")
 def large_resource(sysadmin, package, solarto_csv):
     solarto_csv_path, solarto_fields = solarto_csv
-    # tmp_dir = os.path.dirname(solarto_csv_path)
+
     context = {
         "user": sysadmin["name"],
         "auth_user_obj": sysadmin,
@@ -97,7 +91,6 @@ def large_resource(sysadmin, package, solarto_csv):
         name="test_fixture_resource",
         format="CSV",
         description="description of test resource. this resource should be cleaned up (deleted) by test fixtures",
-        # files={"upload": open(large_csv, "rb")},
         upload=FileStorage(
             stream=open(solarto_csv_path, "rb"), filename=solarto_csv_path.name
         ),
