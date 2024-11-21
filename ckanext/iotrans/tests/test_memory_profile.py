@@ -13,49 +13,16 @@ import ckan.tests.helpers as helpers
 import requests
 from memory_profiler import memory_usage, profile
 
-from ckan.plugins.toolkit import call_action
-
-
-@pytest.mark.usefixtures("with_request_context")
-class TestApiController(object):
-    def test_resource_create_upload_file(self, app, monkeypatch, tmpdir, ckan_config):
-        monkeypatch.setitem(ckan_config, "ckan.storage_path", str(tmpdir))
-        monkeypatch.setattr(ckan_uploader, "_storage_path", str(tmpdir))
-
-        user = factories.User()
-        pkg = factories.Dataset(creator_user_id=user["id"])
-
-        url = url_for(
-            controller="api",
-            action="action",
-            logic_function="resource_create",
-            ver="/3",
-        )
-        env = {"REMOTE_USER": six.ensure_str(user["name"])}
-
-        content = six.ensure_binary("upload-content")
-        upload_content = six.BytesIO(content)
-        postparams = {
-            "name": "test-flask-upload",
-            "package_id": pkg["id"],
-            "upload": (upload_content, "test-upload.txt"),
-        }
-
-        resp = app.post(
-            url,
-            data=postparams,
-            environ_overrides=env,
-            content_type="multipart/form-data",
-        )
-        result = resp.json["result"]
-        assert "upload" == result["url_type"]
-        assert len(content) == result["size"]
+import six
+import ckan.tests.factories as factories
 
 
 # @pytest.fixture(scope="session")
 @pytest.fixture()
 def large_csv(tmp_path_factory):
     tmp_path = tmp_path_factory.mktemp("iotrans") / "solarto.csv"
+
+    # tmp_path = "./"
 
     # TODO at some point this link to a prod csv resource should be replaced with a
     # more appropriate static file
@@ -83,25 +50,33 @@ import os
 
 from ckan.lib import uploader as ckan_uploader
 
+from werkzeug.datastructures import FileStorage
+
 
 # @pytest.fixture(scope="session")
 @pytest.fixture()
 def large_resource(sysadmin, package, large_csv, monkeypatch_session, ckan_config):
     tmp_dir = os.path.dirname(large_csv)
-    monkeypatch_session.setitem(ckan_config, "ckan.storage_path", str(tmp_dir))
-    monkeypatch_session.setattr(ckan_uploader, "_storage_path", str(tmp_dir))
     context = {
         "user": sysadmin["name"],
         "auth_user_obj": sysadmin,
     }
-    resource = call_action(
+    # resource = factories.Resource(
+    #     package_id=package["id"],
+    #     name="test_fixture_resource",
+    #     format="CSV",
+    #     description="description of test resource. this resource should be cleaned up (deleted) by test fixtures",
+    #     upload=open(large_csv, "rb"),
+    # )
+    resource = helpers.call_action(
         "resource_create",
         context=context,
         package_id=package["id"],
         name="test_fixture_resource",
         format="CSV",
         description="description of test resource. this resource should be cleaned up (deleted) by test fixtures",
-        files={"upload": open(large_csv, "rb")},
+        # files={"upload": open(large_csv, "rb")},
+        upload=FileStorage(stream=open(large_csv, "rb"), filename=large_csv.name),
     )
     helpers.call_action(
         "datastore_create",
