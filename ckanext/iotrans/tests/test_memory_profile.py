@@ -56,7 +56,9 @@ def solarto_csv(tmp_path_factory):
 
 
 def chunk_csv(file_name: Path, row_chunk_size: int) -> Generator[List, None, None]:
-    lim = float("inf")
+    # set to some smaller number to run on a subset of chunks if we don't want to wait
+    # for the full resource to be created
+    lim = float('inf')
     with open(file_name, "r") as csvfile:
         reader = csv.DictReader(csvfile)
         # header
@@ -120,6 +122,8 @@ def large_resource(sysadmin, package, solarto_csv):
         yield resource
     finally:
         helpers.call_action("resource_delete", context, id=resource["id"])
+        # TODO - probably should also call `datastore_delete` here for the created
+        # datastore record?
 
 
 @pytest.mark.profiling
