@@ -58,7 +58,7 @@ def solarto_csv(tmp_path_factory):
 def chunk_csv(file_name: Path, row_chunk_size: int) -> Generator[List, None, None]:
     # set to some smaller number to run on a subset of chunks if we don't want to wait
     # for the full resource to be created
-    lim = float('inf')
+    lim = float("inf")
     with open(file_name, "r") as csvfile:
         reader = csv.DictReader(csvfile)
         # header
@@ -144,14 +144,45 @@ def test_profile_to_file(target_format, sysadmin, large_resource):
         "target_epsgs": [4326, 2952],
         "target_formats": [target_format],
     }
+    now_str = datetime.now().strftime("%Y_%m_%d_%H_%M")
 
-    @profile
-    def to_file_wrapper():
-        return helpers.call_action("to_file", context=context, **data)
+    with open(f"memory_profiler_{now}.log", "w+") as log_file:
 
-    to_file_wrapper()
-    mem, val = memory_usage((to_file_wrapper, (), {}), retval=True)
-    print(mem)
-    print(val)
-    breakpoint()
+        @profile(stream=log_file)
+        def to_file_wrapper():
+            return helpers.call_action("to_file", context=context, **data)
+
+        to_file_wrapper()
+        # mem, val = memory_usage((to_file_wrapper, (), {}), retval=True)
+        breakpoint()
+    # TODO: some assertion about anticipated memory consumption
+
+
+from datetime import datetime
+
+
+@pytest.mark.profiling
+def test_profile_to_file(sysadmin):
+    context = {"user": sysadmin["name"]}
+    solar_to = "a9153284-9b60-43c3-a8a5-31c65b9f38a7"
+    # select id, name from resource where package_id in (select id from package where name='tps-police-divisions');
+    tps_boundaries = "627c9199-050f-4380-83ec-b3017e0a34b7"
+
+    data = {
+        "resource_id": tps_boundaries,
+        "source_epsg": 4326,
+        "target_epsgs": [4326, 2952],
+        "target_formats": ["shp"],
+    }
+    now_str = datetime.now().strftime("%Y_%m_%d_%H_%M")
+
+    with open(f"memory_profiler_{now_str}.log", "w+") as log_file:
+
+        @profile(stream=log_file)
+        def to_file_wrapper():
+            return helpers.call_action("to_file", context=context, **data)
+
+        to_file_wrapper()
+        # mem, val = memory_usage((to_file_wrapper, (), {}), retval=True)
+        breakpoint()
     # TODO: some assertion about anticipated memory consumption
