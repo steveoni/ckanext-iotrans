@@ -41,7 +41,8 @@ def to_file(context, data_dict):
     # ckan api action to_file source_epsg=4326 target_epsgs='[4326,2952]' target_formats='["shp"]' resource_id=e49245ba-395c-46bf-bcf8-22fc7024d649
     # NOTE: important the target format is xml. otherwise this will silently chew up a bunch of time and not actually invoke the memory-hungry part
     # (seems to be xml writing? tbd)
-    # ckan api action to_file source_epsg=4326 target_epsgs='[4326,2952]' target_formats='["xml"]' resource_id=7a48da49-2e1b-4adb-94c2-732f2eac5bf0
+    # dev0: ckan api action to_file source_epsg=4326 target_epsgs='[4326,2952]' target_formats='["xml"]' resource_id=7a48da49-2e1b-4adb-94c2-732f2eac5bf0
+    # dev1: ckan api action to_file source_epsg=4326 target_epsgs='[4326,2952]' target_formats='["xml"]' resource_id=81daf9aa-ac37-4c0f-b53a-a33a28630232
     data_dict["target_formats"] = json.loads(data_dict["target_formats"])
     data_dict["target_epsgs"] = json.loads(data_dict["target_epsgs"])
 
@@ -429,7 +430,6 @@ def to_file(context, data_dict):
 
                     # XML
                     elif target_format.lower() == "xml":
-                        breakpoint()
                         utils.write_to_xml(dump_filepath, output_filepath)
                         output = utils.append_to_output(
                             output, target_format, None, output_filepath
