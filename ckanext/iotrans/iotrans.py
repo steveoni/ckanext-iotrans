@@ -39,6 +39,7 @@ def to_file(context, data_dict):
     now_str = datetime.now().isoformat()
     # ckan api action to_file source_epsg=4326 target_epsgs='[4326,2952]' target_formats='["shp"]' resource_id=627c9199-050f-4380-83ec-b3017e0a34b7
     # ckan api action to_file source_epsg=4326 target_epsgs='[4326,2952]' target_formats='["shp"]' resource_id=e49245ba-395c-46bf-bcf8-22fc7024d649
+    # dev1: ckan api action to_file source_epsg=4326 target_epsgs='[4326,2952]' target_formats='["shp"]' resource_id=8102bd4c-83cd-4354-9788-eecc0c7a09b4
     # NOTE: important the target format is xml. otherwise this will silently chew up a bunch of time and not actually invoke the memory-hungry part
     # (seems to be xml writing? tbd)
     # dev0: ckan api action to_file source_epsg=4326 target_epsgs='[4326,2952]' target_formats='["xml"]' resource_id=7a48da49-2e1b-4adb-94c2-732f2eac5bf0
@@ -121,20 +122,28 @@ def to_file(context, data_dict):
             )
 
             # TODO
-            # This takes a very long time (~250 db + api calls with 20k records each)
-            # on dev0. To skip the waiting, saved this file here:
+            # big_resource_ids takes a very long time (~250 db + api calls with 20k
+            # records each). To skip the waiting, saved this file here:
             #   /inet/ckan/jamie-test-keep/download.csv
             # and using it statically.
-            # utils.write_to_csv(
-            #     dump_filepath,
-            #     fieldnames,
-            #     utils.dump_generator(
-            #         data_dict["resource_id"],
-            #         fieldnames,
-            #         context,
-            #     ),
-            # )
-            dump_filepath = "/inet/ckan/jamie-test-keep/download.csv"
+            # To find if a file exists (ouch):
+            # grep "10751816,6,Dombey Rd,Magellan Dr,Calico Dr" -r /inet/ckan/resources
+            big_resource_ids = (
+                "7a48da49-2e1b-4adb-94c2-732f2eac5bf0",
+                "81daf9aa-ac37-4c0f-b53a-a33a28630232",
+            )
+            if data_dict["resource_id"] not in big_resource_ids:
+                utils.write_to_csv(
+                    dump_filepath,
+                    fieldnames,
+                    utils.dump_generator(
+                        data_dict["resource_id"],
+                        fieldnames,
+                        context,
+                    ),
+                )
+            else:
+                dump_filepath = "/inet/ckan/jamie-test-keep/download.csv"
 
             # We now have our working dump file. The request tells us how to use it
             # Let's first determine whether geometry is involved
@@ -369,7 +378,6 @@ def to_file(context, data_dict):
                                                 name
                                             ] = this_type
                                             i += 1
-
                                 with fiona.open(
                                     output_filepath,
                                     "w",
@@ -377,6 +385,7 @@ def to_file(context, data_dict):
                                     driver=drivers[target_format],
                                     crs=from_epsg(target_epsg),
                                 ) as outlayer:
+                                    breakpoint()
                                     outlayer.writerecords(
                                         utils.dump_to_geospatial_generator(
                                             dump_filepath,
