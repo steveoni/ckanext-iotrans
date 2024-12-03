@@ -40,12 +40,19 @@ def to_file(context, data_dict):
     # ckan api action to_file source_epsg=4326 target_epsgs='[4326,2952]' target_formats='["shp"]' resource_id=627c9199-050f-4380-83ec-b3017e0a34b7
     # ckan api action to_file source_epsg=4326 target_epsgs='[4326,2952]' target_formats='["shp"]' resource_id=e49245ba-395c-46bf-bcf8-22fc7024d649
     # dev1: ckan api action to_file source_epsg=4326 target_epsgs='[4326,2952]' target_formats='["shp"]' resource_id=8102bd4c-83cd-4354-9788-eecc0c7a09b4
-    # NOTE: important the target format is xml. otherwise this will silently chew up a bunch of time and not actually invoke the memory-hungry part
-    # (seems to be xml writing? tbd)
+    # NOTE: important the target format these below is xml. otherwise this will silently chew up a bunch of time and not actually invoke the memory-hungry part
     # dev0: ckan api action to_file source_epsg=4326 target_epsgs='[4326,2952]' target_formats='["xml"]' resource_id=7a48da49-2e1b-4adb-94c2-732f2eac5bf0
     # dev1: ckan api action to_file source_epsg=4326 target_epsgs='[4326,2952]' target_formats='["xml"]' resource_id=81daf9aa-ac37-4c0f-b53a-a33a28630232
-    data_dict["target_formats"] = json.loads(data_dict["target_formats"])
-    data_dict["target_epsgs"] = json.loads(data_dict["target_epsgs"])
+
+    # Make this CLI-friendly
+    try:
+        data_dict["target_formats"] = json.loads(data_dict["target_formats"])
+    except json.decoder.JSONDecodeError:
+        pass
+    try:
+        data_dict["target_epsgs"] = json.loads(data_dict["target_epsgs"])
+    except json.decoder.JSONDecodeError:
+        pass
 
     log_dir = os.path.join("/root", "profiling")
     if not os.path.exists(log_dir):
@@ -130,9 +137,10 @@ def to_file(context, data_dict):
             # grep "10751816,6,Dombey Rd,Magellan Dr,Calico Dr" -r /inet/ckan/resources
             big_resource_ids = (
                 "7a48da49-2e1b-4adb-94c2-732f2eac5bf0",
-                "81daf9aa-ac37-4c0f-b53a-a33a28630232",
+                # "81daf9aa-ac37-4c0f-b53a-a33a28630232",
             )
             if data_dict["resource_id"] not in big_resource_ids:
+                print(f"downloading and writing to intermediary csv: {dump_filepath}")
                 utils.write_to_csv(
                     dump_filepath,
                     fieldnames,
@@ -142,6 +150,7 @@ def to_file(context, data_dict):
                         context,
                     ),
                 )
+                print("done writing")
             else:
                 dump_filepath = "/inet/ckan/jamie-test-keep/download.csv"
 
@@ -385,7 +394,6 @@ def to_file(context, data_dict):
                                     driver=drivers[target_format],
                                     crs=from_epsg(target_epsg),
                                 ) as outlayer:
-                                    breakpoint()
                                     outlayer.writerecords(
                                         utils.dump_to_geospatial_generator(
                                             dump_filepath,
@@ -439,10 +447,12 @@ def to_file(context, data_dict):
 
                     # XML
                     elif target_format.lower() == "xml":
+                        print("writing xml")
                         utils.write_to_xml(dump_filepath, output_filepath)
                         output = utils.append_to_output(
                             output, target_format, None, output_filepath
                         )
+                        print("done xml")
 
             logging.info("[ckanext-iotrans] finished file creation")
 
