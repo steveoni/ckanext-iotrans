@@ -3,6 +3,8 @@ import json
 import random
 from datetime import datetime, timedelta
 
+random.seed(6)
+
 
 def generate_fake_csv(file_name: str, num_rows: int) -> None:
     """Generates a CSV file with fake data.
