@@ -39,6 +39,9 @@ def to_file(context, data_dict):
     now_str = datetime.now().isoformat()
     # ckan api action to_file source_epsg=4326 target_epsgs='[4326,2952]' target_formats='["shp"]' resource_id=627c9199-050f-4380-83ec-b3017e0a34b7
     # ckan api action to_file source_epsg=4326 target_epsgs='[4326,2952]' target_formats='["shp"]' resource_id=e49245ba-395c-46bf-bcf8-22fc7024d649
+    # NOTE: important the target format is xml. otherwise this will silently chew up a bunch of time and not actually invoke the memory-hungry part
+    # (seems to be xml writing? tbd)
+    # ckan api action to_file source_epsg=4326 target_epsgs='[4326,2952]' target_formats='["xml"]' resource_id=7a48da49-2e1b-4adb-94c2-732f2eac5bf0
     data_dict["target_formats"] = json.loads(data_dict["target_formats"])
     data_dict["target_epsgs"] = json.loads(data_dict["target_epsgs"])
 
@@ -115,15 +118,22 @@ def to_file(context, data_dict):
                 data_dict.get("source_epsg", None),
                 dump_suffix,
             )
-            utils.write_to_csv(
-                dump_filepath,
-                fieldnames,
-                utils.dump_generator(
-                    data_dict["resource_id"],
-                    fieldnames,
-                    context,
-                ),
-            )
+
+            # TODO
+            # This takes a very long time (~250 db + api calls with 20k records each)
+            # on dev0. To skip the waiting, saved this file here:
+            #   /inet/ckan/jamie-test-keep/download.csv
+            # and using it statically.
+            # utils.write_to_csv(
+            #     dump_filepath,
+            #     fieldnames,
+            #     utils.dump_generator(
+            #         data_dict["resource_id"],
+            #         fieldnames,
+            #         context,
+            #     ),
+            # )
+            dump_filepath = "/inet/ckan/jamie-test-keep/download.csv"
 
             # We now have our working dump file. The request tells us how to use it
             # Let's first determine whether geometry is involved
@@ -419,6 +429,7 @@ def to_file(context, data_dict):
 
                     # XML
                     elif target_format.lower() == "xml":
+                        breakpoint()
                         utils.write_to_xml(dump_filepath, output_filepath)
                         output = utils.append_to_output(
                             output, target_format, None, output_filepath
