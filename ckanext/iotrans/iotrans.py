@@ -46,7 +46,7 @@ def to_file(context, data_dict):
 
     # using fake_data.csv
     # (resource_id doesn't really matter? just setting to 81daf9aa-ac37-4c0f-b53a-a33a28630232 so we trigger the edge below...)
-    # dev1: ckan api action to_file source_epsg=4326 target_epsgs='[4326,2952]' target_formats='["shp"]' resource_id=81daf9aa-ac37-4c0f-b53a-a33a28630232
+    # dev1: ckan api action to_file source_epsg=4326 target_epsgs='[4326]' target_formats='["shp"]' resource_id=81daf9aa-ac37-4c0f-b53a-a33a28630232
 
     # Make this CLI-friendly
     try:
