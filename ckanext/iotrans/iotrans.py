@@ -44,6 +44,10 @@ def to_file(context, data_dict):
     # dev0: ckan api action to_file source_epsg=4326 target_epsgs='[4326,2952]' target_formats='["xml"]' resource_id=7a48da49-2e1b-4adb-94c2-732f2eac5bf0
     # dev1: ckan api action to_file source_epsg=4326 target_epsgs='[4326,2952]' target_formats='["xml"]' resource_id=81daf9aa-ac37-4c0f-b53a-a33a28630232
 
+    # using fake_data.csv
+    # (resource_id doesn't really matter? just setting to 81daf9aa-ac37-4c0f-b53a-a33a28630232 so we trigger the edge below...)
+    # dev1: ckan api action to_file source_epsg=4326 target_epsgs='[4326,2952]' target_formats='["shp"]' resource_id=81daf9aa-ac37-4c0f-b53a-a33a28630232
+
     # Make this CLI-friendly
     try:
         data_dict["target_formats"] = json.loads(data_dict["target_formats"])
@@ -109,7 +113,13 @@ def to_file(context, data_dict):
             )
 
             # get fieldnames for the resource
-            fieldnames = [field["id"] for field in datastore_resource["fields"]]
+            # fieldnames = [field["id"] for field in datastore_resource["fields"]]
+            fieldnames = ['data','value','geometry']
+            datastore_resource["fields"] = [
+                {'id':'data','type':'text'},
+                {'id':'value','type':'float4'},
+                {'id':'geometry','type':'text'},
+            ]
 
             # create working CSV dump filepath. This file will be used for all outputs
             # We will use it as an output if we're not dealing w geometric data
@@ -137,7 +147,7 @@ def to_file(context, data_dict):
             # grep "10751816,6,Dombey Rd,Magellan Dr,Calico Dr" -r /inet/ckan/resources
             big_resource_ids = (
                 "7a48da49-2e1b-4adb-94c2-732f2eac5bf0",
-                # "81daf9aa-ac37-4c0f-b53a-a33a28630232",
+                "81daf9aa-ac37-4c0f-b53a-a33a28630232",
             )
             if data_dict["resource_id"] not in big_resource_ids:
                 print(f"downloading and writing to intermediary csv: {dump_filepath}")
@@ -152,13 +162,17 @@ def to_file(context, data_dict):
                 )
                 print("done writing")
             else:
-                dump_filepath = "/inet/ckan/jamie-test-keep/download.csv"
+                print("using mocked/static csv...")
+                dump_filepath = "/usr/lib/ckan/default/src/ckanext-iotrans/.hide/fake_data.csv"
+                # dump_filepath = "/inet/ckan/jamie-test-keep/download.csv"
+                # dump_filepath = "/inet/ckan/jamie-test-keep/download.csv"
 
             # We now have our working dump file. The request tells us how to use it
             # Let's first determine whether geometry is involved
 
             # For geometric transformations...
-            if "geometry" in fieldnames:
+            # if "geometry" in fieldnames:
+            if 'geometry' in fieldnames:
                 logging.info(
                     "[ckanext-iotrans] Geometric iotrans transformation started"
                 )
@@ -292,13 +306,14 @@ def to_file(context, data_dict):
                                 "MultiPolygon": "MultiPolygon",
                             }
                             # and convert to multi (ex point to multipoint) and single quotes to double quotes
-                            geometry_type = geom_type_map[
-                                json.loads(
-                                    datastore_resource["records"][0][
-                                        "geometry"
-                                    ].replace("'", '"')
-                                )["type"]
-                            ]
+                            # geometry_type = geom_type_map[
+                            #     json.loads(
+                            #         datastore_resource["records"][0][
+                            #             "geometry"
+                            #         ].replace("'", '"')
+                            #     )["type"]
+                            # ]
+                            geometry_type = "MultiPoint"
                             # Get all the field data types (other than geometry)
                             # Map them to fiona data types
                             fields_metadata = {
@@ -333,6 +348,8 @@ def to_file(context, data_dict):
                                     driver=drivers[target_format],
                                     crs=from_epsg(target_epsg),
                                 ) as outlayer:
+                                    breakpoint()
+                                    print(f"shp to {dump_filepath}")
                                     outlayer.writerecords(
                                         utils.dump_to_geospatial_generator(
                                             dump_filepath,
@@ -394,6 +411,7 @@ def to_file(context, data_dict):
                                     driver=drivers[target_format],
                                     crs=from_epsg(target_epsg),
                                 ) as outlayer:
+                                    breakpoint()
                                     outlayer.writerecords(
                                         utils.dump_to_geospatial_generator(
                                             dump_filepath,
@@ -447,7 +465,7 @@ def to_file(context, data_dict):
 
                     # XML
                     elif target_format.lower() == "xml":
-                        print("writing xml")
+                        print(f"writing xml to {output_filepath}")
                         utils.write_to_xml(dump_filepath, output_filepath)
                         output = utils.append_to_output(
                             output, target_format, None, output_filepath
