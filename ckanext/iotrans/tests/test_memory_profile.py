@@ -21,9 +21,64 @@ from werkzeug.datastructures import FileStorage
 from typing import Generator, List
 import yaml
 
+import csv
+import json
+import random
+from datetime import datetime, timedelta
+import os
+
 
 @pytest.fixture(scope="session")
-def solarto_csv(tmp_path_factory):
+def large_geospatial_csv() -> None:
+    """Generates a CSV file with fake data.
+
+    Args:
+        file_name (str): The name of the output CSV file.
+        num_rows (int): The number of rows to generate.
+    """
+    here = os.path.dirname(os.path.abspath(__file__))
+    hide_dir = os.path.join(here,"..","..","..",".hide")
+    os.makedirs(hide_dir, exist_ok=True)
+    from pathlib import Path
+    csv_file_name = Path(os.path.join(hide_dir, "fake_data.csv"))
+
+    fields = [
+        {"id": "date", "type": "text"},
+        {"id": "value", "type": "float4"},
+        {"id": "geometry", "type": "text"},
+    ]
+    fieldnames = [field['id'] for field in fields]
+
+    if csv_file_name.exists():
+        return csv_file_name, fields
+
+    random.seed(6)
+    num_rows = 4700000 # 4.7 million Point geoms (4.7M rows)
+    with open(csv_file_name, "w", newline="") as csvfile:
+        fieldnames = ["date", "value", "geometry"]
+        writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+
+        writer.writeheader()
+
+        for _ in range(num_rows):
+            start_date = datetime.now() - timedelta(days=3650)
+            random_date = start_date + timedelta(days=random.randint(0, 3650))
+            date_str = random_date.strftime("%Y-%m-%d")
+
+            value = round(random.uniform(0.0, 1000.0), 2)
+
+            longitude = round(random.uniform(-180.0, 180.0), 6)
+            latitude = round(random.uniform(-90.0, 90.0), 6)
+            geometry = {"type": "Point", "coordinates": [longitude, latitude]}
+
+            writer.writerow(
+                {"date": date_str, "value": value, "geometry": json.dumps(geometry)}
+            )
+    return csv_file_name, fields
+
+
+@pytest.fixture(scope="session")
+def large_csv(tmp_path_factory):
 
     # TODO at some point this link to a prod csv resource should be replaced with a
     # more appropriate static file
@@ -78,9 +133,10 @@ def chunk_csv(file_name: Path, row_chunk_size: int) -> Generator[List, None, Non
             yield chunk
 
 
+
 @pytest.fixture(scope="session")
-def large_resource(sysadmin, package, solarto_csv):
-    solarto_csv_path, solarto_fields = solarto_csv
+def large_resource(sysadmin, package, large_geospatial_csv):
+    large_csv_path, large_csv_fields = large_geospatial_csv
 
     context = {
         "user": sysadmin["name"],
@@ -94,7 +150,7 @@ def large_resource(sysadmin, package, solarto_csv):
         format="CSV",
         description="description of test resource. this resource should be cleaned up (deleted) by test fixtures",
         upload=FileStorage(
-            stream=open(solarto_csv_path, "rb"), filename=solarto_csv_path.name
+            stream=open(large_csv_path, "rb"), filename=large_csv_path.name
         ),
     )
     datastore_record = helpers.call_action(
@@ -102,14 +158,16 @@ def large_resource(sysadmin, package, solarto_csv):
         context=context,
         resource_id=resource["id"],
         force=True,
-        fields=solarto_fields,
+        fields=large_csv_fields,
     )
 
-    for rows in chunk_csv(solarto_csv_path, 100):
+    iters = 0
+    for rows in chunk_csv(large_csv_path, 50000):
         for i in range(len(rows)):
             if "_id" in rows[i]:
                 del rows[i]["_id"]
             rows[i] = {k: v if v != "" else None for k, v in rows[i].items()}
+        print(f"calling datastore_upsert {iters}")
         helpers.call_action(
             "datastore_upsert",
             resource_id=resource["id"],
@@ -117,13 +175,15 @@ def large_resource(sysadmin, package, solarto_csv):
             records=rows,
             force=True,
         )
+        iters += 1
 
     try:
         yield resource
     finally:
-        helpers.call_action("resource_delete", context, id=resource["id"])
-        # TODO - probably should also call `datastore_delete` here for the created
-        # datastore record?
+        try:
+            helpers.call_action("datastore_delete", context, resource_id=resource['id'])
+        finally:
+            helpers.call_action("resource_delete", context, id=resource["id"])
 
 
 @pytest.mark.profiling
@@ -144,9 +204,9 @@ def test_profile_to_file(target_format, sysadmin, large_resource):
         "target_epsgs": [4326, 2952],
         "target_formats": [target_format],
     }
-    now_str = datetime.now().strftime("%Y_%m_%d_%H_%M")
+    now_str = datetime.now().isoformat
 
-    with open(f"memory_profiler_{now}.log", "w+") as log_file:
+    with open(f"memory_profiler_{now_str}.log", "w+") as log_file:
 
         @profile(stream=log_file)
         def to_file_wrapper():
@@ -162,7 +222,8 @@ from datetime import datetime
 
 
 @pytest.mark.profiling
-def test_profile_to_file(sysadmin):
+@pytest.mark.skip
+def test_profile_to_file_by_resource_id(sysadmin):
     context = {"user": sysadmin["name"]}
     solar_to = "a9153284-9b60-43c3-a8a5-31c65b9f38a7"
     # select id, name from resource where package_id in (select id from package where name='tps-police-divisions');
