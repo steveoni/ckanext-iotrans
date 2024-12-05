@@ -146,8 +146,6 @@ def dump_to_geospatial_generator(
 
             yield (output)
 
-        f.close()
-
 
 def transform_dump_epsg(dump_filepath, fieldnames, source_epsg, target_epsg):
     """generator yields dump rows with epsg reformatted/converted"""
@@ -170,8 +168,8 @@ def transform_dump_epsg(dump_filepath, fieldnames, source_epsg, target_epsg):
         f.close()
 
 
-def create_filepath(dir_path, resource_name, epsg, file_format):
-    """Creates a filepath using input resource name, and desired format/epsg"""
+def get_filepath(dir_path, resource_name, epsg, file_format):
+    """Gets a filepath using input resource name, and desired format/epsg"""
 
     epsg_suffix = " - " + str(epsg) if epsg else ""
     return os.path.join(
@@ -204,7 +202,8 @@ def write_to_zipped_shapefile(
     """Zips shp component files together with optional colname mapping csv"""
 
     # put a mapping of full names to truncated names into a csv
-    fields_filepath = dir_path + "/" + resource_metadata["name"] + " fields.csv"
+    file_name = f'{resource_metadata["name"]} fields.csv'
+    fields_filepath = os.path.join(dir_path, file_name)
     with codecs.open(fields_filepath, "w", encoding="utf-8") as fields_file:
         writer = csv.DictWriter(fields_file, fieldnames=["field", "name"])
         writer.writeheader()
@@ -219,18 +218,17 @@ def write_to_zipped_shapefile(
         shp_components = ["shp", "cpg", "dbf", "prj", "shx"]
 
         for file in os.listdir(dir_path):
-            if (
-                file[-3:] in shp_components
-                or file == resource_metadata["name"] + " fields.csv"
-            ):
-                zipfile.write(dir_path + "/" + file, arcname=file)
-                os.remove(dir_path + "/" + file)
+            if file[-3:] in shp_components or file == file_name:
+                file_path = os.path.join(dir_path, file)
+                zipfile.write(file_path, arcname=file)
+                os.remove(file_path)
 
     return output_filepath
 
 
 def write_to_json(dump_filepath, output_filepath, datastore_resource, context):
     """Stream into a JSON file by running datastore_search over and over"""
+    # TODO why are we re-downloading instead of using the dump_filepath?
     with codecs.open(output_filepath, "w", encoding="utf-8") as jsonfile:
         # write starting bracket
         jsonfile.write("[")

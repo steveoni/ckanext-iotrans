@@ -1,1 +1,2 @@
 Fiona==1.10.0
+pydantic==2.9.2

@@ -16,9 +16,380 @@ from . import utils
 from datetime import datetime
 from memory_profiler import memory_usage, profile
 
+from pydantic import BaseModel, ValidationError
+
+from typing import Dict, Any, Literal, List, Tuple, Optional
+from typing import TypedDict
+
+EPSG_TYPES = Literal[4326, 2952]
+
+SPATIAL_TARGET_FORMAT = Literal["shp", "geojson", "gpkg", "csv"]
+NON_SPATIAL_TARGET_FORMAT = Literal["csv", "json", "xml"]
+
+class ToFileParamsSpatial(BaseModel):
+    resource_id: str
+    source_epsg: List[EPSG_TYPES]
+    target_epsgs: List[EPSG_TYPES]
+    target_formats: List[SPATIAL_TARGET_FORMAT]
+
+
+class ToFileParamsNonSpatial(BaseModel):
+    resource_id: str
+    target_formats: List[NON_SPATIAL_TARGET_FORMAT]
+
+
+_CKAN_TO_FIONA_TYPE_MAP = {
+    "text": "str",
+    "date": "str",
+    "timestamp": "str",
+    "float": "float",
+    "int": "int",
+    "numeric": "float",
+    "time": "str",
+}
+
+def _fiona_type_to_python_type(fiona_type:str)->str:
+    type_digits_removed = "".join([char for char in fiona_type if not char.isdigit()])
+    return _CKAN_TO_FIONA_TYPE_MAP[type_digits_removed]
+
+def _is_fasley(arg: Any) -> bool:
+    return arg in ["false", "False", False]
+
+def _truncate_long_field_names(datastore_resource, schema) -> Tuple[Dict, Optional[Dict]]:
+    field_ids = [field['id'] for field in datastore_resource["fields"]]
+    
+    if not any([len(field_id) for field_id in field_ids]):
+        return schema, None
+    
+    col_map = {field_id: field_id for field_id in field_ids}
+    schema["properties"]
+
+    non_geometry_fields = [
+        field for field in datastore_resource['fields'] if field['id'] != 'geometry'
+    ]
+    file_count = 1
+    for field in non_geometry_fields:
+        name = f'{field["id"][:7]}{file_count}'
+        col_map[field["id"]] = name
+        # TODO: why are we stripping fiona types for python types? which is more suited
+        # to the geospatial context (I'd expect probably the geospatial types?)
+        schema["properties"][name] = _fiona_type_to_python_type(field["type"])
+        file_count += 1
+    return schema, col_map
+
+def _get_fiona_schema(datastore_resource, target_format:SPATIAL_TARGET_FORMAT) -> Tuple[Dict,Dict]:
+    
+    # Get Point, Line, or Polygon from the first row of data
+    geom_type_map = {
+        "Point": "MultiPoint",
+        "LineString": "MultiLineString",
+        "Polygon": "MultiPolygon",
+        "MultiPoint": "MultiPoint",
+        "MultiLineString": "MultiLineString",
+        "MultiPolygon": "MultiPolygon",
+    }
+    # and convert to multi (ex point to multipoint) and single quotes to double quotes
+    geometry_type = geom_type_map[json.loads(datastore_resource["records"][0]["geometry"])["type"]]
+
+    # Get all the field data types (other than geometry)
+    # Map them to fiona data types
+    fields_metadata = {
+        field["id"]: _CKAN_TO_FIONA_TYPE_MAP[
+            "".join(
+                [char for char in field["type"] if not char.isdigit()]
+            )
+        ]
+        for field in datastore_resource["fields"]
+        if field["id"] != "geometry"
+    }
+    schema = {"geometry": geometry_type, "properties": fields_metadata}
+    col_map = None
+
+    ################
+    if target_format == "shp":
+        # By default, shp colnames are renamed FIELD_#
+        # ... if their name is more than 10 characters long
+        # We dont like that, so we truncate all fieldnames
+        # ... w concat'd increasing integer so no duplicates
+        # ... but only if there are colnames >= 10 chars
+        # We make a csv mapping truncated to full colnames
+
+        schema, col_map = _truncate_long_field_names(schema, datastore_resource)
+
+    return schema, col_map
+
+def _to_file_spatial(
+    output_dir:str,
+    dump_filepath:str,
+    resource_metadata:Dict,
+    datastore_resource:Dict,
+    data:ToFileParamsSpatial
+    ) -> Dict[SPATIAL_TARGET_FORMAT, str]:
+    logging.info("[ckanext-iotrans] Geometric iotrans transformation started")
+    
+    field_ids = [field['id'] for field in datastore_resource['fields']]
+
+    FIONA_DRIVERS = {
+        "shp": "ESRI Shapefile",
+        "geojson": "GeoJSON",
+        "gpkg": "GPKG",
+    }
+    for target_epsg in data.target_epsgs:
+        for target_format in data.target_formats:
+            logging.info(
+                "[ckanext-iotrans] starting {}-{}".format(
+                    target_format, str(target_epsg)
+                )
+            )
+
+            # TODO .shp -> .zip... this feels wrong, perhaps refactor
+            file_extension = ".zip" if target_format == ".shp" else target_format
+            output_filepath = utils.get_filepath(
+                output_dir, resource_metadata["name"], target_epsg, file_extension
+            )
+
+            if target_format == "csv":
+                # NOTE: we `transform_dump_epsg` even if taret_epsg is equivalent to
+                # source epsg to ensure consistent formatting
+                utils.write_to_csv(
+                    output_filepath,
+                    field_ids,
+                    utils.transform_dump_epsg(
+                        dump_filepath,
+                        field_ids,
+                        data.source_epsg,
+                        target_epsg,
+                    ),
+                )
+                output = utils.append_to_output(
+                    output, target_format, target_epsg, output_filepath
+                )
+            else:
+
+                ## AFAICT the only difference between shp and non-shp:
+                # - `schema` (vs. `working_schema`)
+                # - what is happening with col_map
+
+                """
+                branches: csv, shp, other
+                Options here:
+                - each format gets its own function
+                - template pattern
+                - 
+                """
+
+                schema, col_map = _get_fiona_schema(datastore_resource, target_format)
+
+                with fiona.open(
+                        output_filepath,
+                        "w",
+                        schema=schema,
+                        driver=FIONA_DRIVERS[target_format],
+                        crs=from_epsg(target_epsg),
+                    ) as outlayer:
+                        outlayer.writerecords(
+                            utils.dump_to_geospatial_generator(
+                                dump_filepath,
+                                field_ids,
+                                target_format,
+                                data.source_epsg,
+                                target_epsg,
+                                col_map=col_map,
+                            )
+                        )
+
+                if target_format != "shp":
+                    with fiona.open(
+                        output_filepath,
+                        "w",
+                        schema=schema,
+                        driver=FIONA_DRIVERS[target_format],
+                        crs=from_epsg(target_epsg),
+                    ) as outlayer:
+                        outlayer.writerecords(
+                            utils.dump_to_geospatial_generator(
+                                dump_filepath,
+                                field_ids,
+                                target_format,
+                                data.source_epsg,
+                                target_epsg,
+                            )
+                        )
+
+                elif target_format.lower() == "shp":
+                    # Shapefiles are special
+
+                    # By default, shapefiles are made of many files
+                    # We zip those files in a single zip
+
+                    # By default, shp colnames are renamed FIELD_#
+                    # ... if their name is more than 10 characters long
+
+                    # We dont like that, so we truncate all fieldnames
+                    # ... w concat'd increasing integer so no duplicates
+                    # ... but only if there are colnames >= 10 chars
+                    # We make a csv mapping truncated to full colnames                
+
+                    with fiona.open(
+                        output_filepath,
+                        "w",
+                        schema=working_schema,
+                        driver=FIONA_DRIVERS[target_format],
+                        crs=from_epsg(target_epsg),
+                    ) as outlayer:
+                        outlayer.writerecords(
+                            utils.dump_to_geospatial_generator(
+                                dump_filepath,
+                                field_ids,
+                                target_format,
+                                data.source_epsg,
+                                target_epsg,
+                                col_map,
+                            )
+                        )
+
+                    output_filepath = utils.write_to_zipped_shapefile(
+                        field_ids,
+                        output_dir,
+                        resource_metadata,
+                        output_filepath,
+                        col_map,
+                    )
+
+                    output = utils.append_to_output(
+                        output, target_format, target_epsg, output_filepath
+                    )
+
 
 @tk.side_effect_free
 def to_file(context, data_dict):
+    """
+    inputs:
+        resource_id: CKAN datastore resource ID
+        source_epsg: source EPSG of resource ID, if data is spatial
+        target_epsgs: list of desired EPSGs of output files, if data is spatial
+        target_formats: list of desired file formats
+
+    a spatial datasets needs a geometry column
+    assumes geometry column in dataset contains geometry
+    assumes geometry objects within a dataset are all the same geometry type
+        ex: (all Point, all Line, or all Polygon)
+
+    outputs:
+        writes desired files to folder in /tmp
+        returns a list of filepaths, where the outputs are stored on disk
+    """
+    is_spatial = True
+    try:
+        data = ToFileParamsSpatial(**data_dict)
+    except ValidationError as spatial_valid_error:
+        try:
+            data = ToFileParamsNonSpatial(**data_dict)
+        except ValidationError as non_spatial_valid_error:
+            raise tk.ValidationError(
+                {
+                    # TODO: concat non_spatial_valid_error and spatial_valid_error
+                    "constraints": ["invalid params for both spatial and non-spatial"]
+                }
+            ) from spatial_valid_error
+
+    logging.info("[ckanext-iotrans] Starting iotrans.to_file")
+
+    temp_dir = tempfile.mkdtemp(dir=config.get("ckan.storage_path"))
+    output = {}
+
+    # Make sure the resource id provided is for a datastore resource
+    resource_metadata = tk.get_action("resource_show")(
+        context, {"id": data.resource_id}
+    )
+    if _is_fasley(resource_metadata.get("datastore_active", None)):
+        raise tk.ValidationError(
+            {"constraints": [f"{data.resource_id} is not a datastore resource!"]}
+        )
+
+    datastore_resource = tk.get_action("datastore_search")(
+        context, {"resource_id": data.resource_id}
+    )
+
+    # get fieldnames for the resource
+    fieldnames = [field["id"] for field in datastore_resource["fields"]]
+
+    # create working CSV dump filepath. This file will be used for all outputs
+    # We will use it as an output if we're not dealing w geometric data
+    # We will not use it as an output if we are dealing w geometric data
+    # This is because geometric data gets processed specially, and we want
+    # that processing to be standard across all geometric outputs
+
+    # if "geometry" in fieldnames:
+    # dump_suffix = "csv-dump" # Why is csv-dump important? is it not still a csv?
+
+    dump_filepath = utils.get_filepath(
+        temp_dir, resource_metadata["name"], data_dict.get("source_epsg", None), "csv"
+    )
+    utils.write_to_csv(
+        dump_filepath,
+        fieldnames,
+        utils.dump_generator(
+            data_dict["resource_id"],
+            fieldnames,
+            context,
+        ),
+    )
+    if is_spatial:
+        _to_file_spatial(
+            output_dir=temp_dir,
+            resource_metadata=resource_metadata,
+            data=data,
+            datastore_resource=datastore_resource,
+            dump_filepath=dump_filepath,
+        )
+    else:
+        to_file_non_spatial(data_dict)
+
+    # We now have our working dump file. The request tells us how to use it
+    # Let's first determine whether geometry is involved
+
+    # For geometric transformations...
+
+
+    # For non geometric transformations...
+    elif "geometry" not in fieldnames:
+        logging.info("[ckanext-iotrans] Non geometric iotrans transformation started")
+        # for each target format...
+        for target_format in data_dict["target_formats"]:
+            logging.info("[ckanext-iotrans] starting {}".format(target_format))
+            output_filepath = utils.get_filepath(
+                temp_dir, resource_metadata["name"], None, target_format
+            )
+
+            # CSV
+            if target_format.lower() == "csv":
+                output = utils.append_to_output(
+                    output, target_format, None, dump_filepath
+                )
+
+            # JSON
+            elif target_format.lower() == "json":
+                utils.write_to_json(
+                    dump_filepath, output_filepath, datastore_resource, context
+                )
+                output = utils.append_to_output(
+                    output, target_format, None, output_filepath
+                )
+
+            # XML
+            elif target_format.lower() == "xml":
+                utils.write_to_xml(dump_filepath, output_filepath)
+                output = utils.append_to_output(
+                    output, target_format, None, output_filepath
+                )
+
+    logging.info("[ckanext-iotrans] finished file creation")
+
+    return output
+
+
+def to_file_profile_testing(context, data_dict):
     """
     inputs:
         resource_id: CKAN datastore resource ID
@@ -114,11 +485,11 @@ def to_file(context, data_dict):
 
             # get fieldnames for the resource
             # fieldnames = [field["id"] for field in datastore_resource["fields"]]
-            fieldnames = ['data','value','geometry']
+            fieldnames = ["data", "value", "geometry"]
             datastore_resource["fields"] = [
-                {'id':'data','type':'text'},
-                {'id':'value','type':'float4'},
-                {'id':'geometry','type':'text'},
+                {"id": "data", "type": "text"},
+                {"id": "value", "type": "float4"},
+                {"id": "geometry", "type": "text"},
             ]
 
             # create working CSV dump filepath. This file will be used for all outputs
@@ -131,7 +502,7 @@ def to_file(context, data_dict):
             if "geometry" in fieldnames:
                 dump_suffix = "csv-dump"
 
-            dump_filepath = utils.create_filepath(
+            dump_filepath = utils.get_filepath(
                 dir_path,
                 resource_metadata["name"],
                 data_dict.get("source_epsg", None),
@@ -163,7 +534,9 @@ def to_file(context, data_dict):
                 print("done writing")
             else:
                 print("using mocked/static csv...")
-                dump_filepath = "/usr/lib/ckan/default/src/ckanext-iotrans/.hide/fake_data.csv"
+                dump_filepath = (
+                    "/usr/lib/ckan/default/src/ckanext-iotrans/.hide/fake_data.csv"
+                )
                 # dump_filepath = "/inet/ckan/jamie-test-keep/download.csv"
                 # dump_filepath = "/inet/ckan/jamie-test-keep/download.csv"
 
@@ -172,7 +545,7 @@ def to_file(context, data_dict):
 
             # For geometric transformations...
             # if "geometry" in fieldnames:
-            if 'geometry' in fieldnames:
+            if "geometry" in fieldnames:
                 logging.info(
                     "[ckanext-iotrans] Geometric iotrans transformation started"
                 )
@@ -242,7 +615,7 @@ def to_file(context, data_dict):
                             and target_epsg == data_dict["source_epsg"]
                         ):
 
-                            output_filepath = utils.create_filepath(
+                            output_filepath = utils.get_filepath(
                                 dir_path, resource_metadata["name"], target_epsg, "csv"
                             )
                             utils.write_to_csv(
@@ -266,7 +639,7 @@ def to_file(context, data_dict):
                             target_format.lower() == "csv"
                             and target_epsg != data_dict["source_epsg"]
                         ):
-                            output_filepath = utils.create_filepath(
+                            output_filepath = utils.get_filepath(
                                 dir_path, resource_metadata["name"], target_epsg, "csv"
                             )
                             utils.write_to_csv(
@@ -333,7 +706,7 @@ def to_file(context, data_dict):
                                 "geometry": geometry_type,
                                 "properties": fields_metadata,
                             }
-                            output_filepath = utils.create_filepath(
+                            output_filepath = utils.get_filepath(
                                 dir_path,
                                 resource_metadata["name"],
                                 target_epsg,
@@ -444,7 +817,7 @@ def to_file(context, data_dict):
                 # for each target format...
                 for target_format in data_dict["target_formats"]:
                     logging.info("[ckanext-iotrans] starting {}".format(target_format))
-                    output_filepath = utils.create_filepath(
+                    output_filepath = utils.get_filepath(
                         dir_path, resource_metadata["name"], None, target_format
                     )
 
