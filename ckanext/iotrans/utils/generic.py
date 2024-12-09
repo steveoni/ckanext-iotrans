@@ -113,10 +113,33 @@ def dump_generator(resource_id, fieldnames, context):
             break
 
 
+from typing import Generator
+from utils.to_file import EPSG_TYPES
+
+
+def transform_epsg_generator(
+    generator: Generator[Dict, None, None],
+    source_epsg: EPSG_TYPES,
+    target_epsg: EPSG_TYPES,
+    geometry_column: str,
+    jsonify: bool,
+) -> Generator[Dict, None, None]:
+    for row in generator:
+        geometry = transform_epsg(source_epsg, target_epsg, row.get(geometry_column))
+        if jsonify:
+            geometry = _geometry_to_json(geometry)
+        yield {
+            "type": "Feature",
+            "properties": dict(row),
+            "geometry": geometry,
+        }
+
+
 def dump_to_geospatial_generator(
     dump_filepath, fieldnames, target_format, source_epsg, target_epsg, col_map=None
 ):
     """reads a CKAN CSV dump, creates generator with converted CRS"""
+    # TODO DRY: should be consolidated w/ dump_to_geospatial_generator
 
     # For each row in the dump ...
     with codecs.open(dump_filepath, "r", encoding="utf-8") as f:
@@ -149,11 +172,11 @@ def dump_to_geospatial_generator(
 
 def transform_dump_epsg(dump_filepath, fieldnames, source_epsg, target_epsg):
     """generator yields dump rows with epsg reformatted/converted"""
+    # TODO DRY: should be consolidated w/ dump_to_geospatial_generator
 
     # Open the dump CSV into a dictreader
     with codecs.open(dump_filepath, "r", encoding="utf-8") as f:
         dictreader = csv.DictReader(f, fieldnames=fieldnames)
-        # skip header
         next(dictreader)
 
         # For each fow, convert the CRS
@@ -164,8 +187,6 @@ def transform_dump_epsg(dump_filepath, fieldnames, source_epsg, target_epsg):
                 _geometry_to_json(geometry) if geometry is not None else None
             )
             yield (row)
-
-        f.close()
 
 
 def get_filepath(dir_path, resource_name, epsg, file_format):

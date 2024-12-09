@@ -1,5 +1,6 @@
 import ckan.plugins as plugins
-from . import iotrans, utils
+from .utils import generic
+from . import iotrans
 
 
 class IotransPlugin(plugins.SingletonPlugin):
@@ -14,6 +15,7 @@ class IotransPlugin(plugins.SingletonPlugin):
     These can also be used with tk.get_action("to_file"),
     for example, in this CKAN extension code
     """
+
     plugins.implements(plugins.IActions)
 
     def get_actions(self):
@@ -32,6 +34,6 @@ class IotransPlugin(plugins.SingletonPlugin):
 
     def get_auth_functions(self):
         return {
-            "to_file": utils.iotrans_auth_function,
-            "prune": utils.iotrans_auth_function,
+            "to_file": generic.iotrans_auth_function,
+            "prune": generic.iotrans_auth_function,
         }
