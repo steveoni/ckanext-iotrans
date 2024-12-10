@@ -86,18 +86,27 @@ def to_file(context, data_dict):
     #    to a constant rathern than N times (where N is the number of outputs we target)
     temp_dir = tempfile.mkdtemp(dir=config.get("ckan.storage_path"))
     dump_filepath = utils.get_filepath(
-        temp_dir, resource_metadata["name"], data_dict.get("source_epsg", None), "csv"
+        temp_dir,
+        resource_metadata["name"],
+        data_dict.get("source_epsg", None),
+        "jsonlines",
     )
     fieldnames = [field["id"] for field in datastore_resource["fields"]]
-    utils.write_to_csv(
-        dump_filepath,
+
+    def write_to_jsonlines(dump_filepath, generator):
+        with open(dump_filepath, "w") as f:
+            f.writelines(f"{json.dumps(row)}\n" for row in generator)
+
+    def json_lines_reader(file):
+        for row in file:
+            yield json.loads(row)
+
+    generator = utils.dump_generator(
+        data.resource_id,
         fieldnames,
-        utils.dump_generator(
-            data.resource_id,
-            fieldnames,
-            context,
-        ),
+        context,
     )
+    write_to_jsonlines(dump_filepath, generator)
 
     geometry_type = (
         json.loads(datastore_resource["records"][0]["geometry"])["type"]
@@ -129,8 +138,7 @@ def to_file(context, data_dict):
     output = {}
     for handler in handlers:
         with open(dump_filepath, "r") as csv_file:
-            row_generator = csv.DictReader(csv_file, fieldnames=fieldnames)
-            next(row_generator)  # skip header
+            row_generator = json_lines_reader(csv_file)
             output[handler.name()] = handler.to_file(row_generator)
     return output
 

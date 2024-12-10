@@ -135,7 +135,6 @@ class NonSpatialHandler(ToFileHandler):
         csv: Generator[Dict, None, None]
     ) -> Generator[str, None, None]:
         for row in csv:
-            breakpoint()
             yield json.dumps(row)
 
     @staticmethod
@@ -173,7 +172,7 @@ class NonSpatialHandler(ToFileHandler):
 
         with open(self.output_filepath, "w", encoding=XML_ENCODING) as xml_file:
 
-            xml_file.write(f'<?xml version="1.0" encoding="{XML_ENCODING}"?>\n')
+            xml_file.write(f"<?xml version='1.0' encoding='{XML_ENCODING}'?>\n")
             xml_file.write(f"<{root_tag}>")
             i = 0
 
@@ -186,7 +185,7 @@ class NonSpatialHandler(ToFileHandler):
                 xml_row = ET.Element("ROW", count=str(i))
                 for key, value in csv_row.items():
                     keyname = re.sub(r"[^a-zA-Z0-9-_]", "", key)
-                    ET.SubElement(xml_row, keyname).text = value
+                    ET.SubElement(xml_row, keyname).text = str(value)
                 chunk.append(ET.tostring(xml_row, encoding="unicode"))
 
                 i += 1
