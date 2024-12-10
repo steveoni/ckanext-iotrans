@@ -14,29 +14,10 @@ import xml.etree.cElementTree as ET
 from fiona import Geometry
 from typing import Dict, Any
 from typing import Generator
-from .to_file import EPSG
+from .to_file import EPSG, geometry_to_json
 
 
 import ckan.plugins.toolkit as tk
-
-
-def _geometry_to_json(geom: Geometry) -> str:
-    """_geometry_to_json
-
-    :param geom: the fiona geometry
-    :type geom: Geometry
-    :return: geojson compliant JSON string
-    :rtype: str
-    """
-    geom_dict = dict(geom)
-
-    # GeoJSON spec does not indicate a case for `null` to be valid json (only mentions
-    # it to be a list of geometries or DNE in the json at all.)
-    # So if it is explicitly None, remove it before jsonifying
-    if "geometries" in geom_dict and geom_dict.get("geometries") is None:
-        del geom_dict["geometries"]
-
-    return json.dumps(geom_dict)
 
 
 def is_falsey(arg: Any) -> bool:
@@ -130,7 +111,7 @@ def transform_epsg_generator(
     for row in generator:
         geometry = transform_epsg(source_epsg, target_epsg, row.get(geometry_column))
         if jsonify:
-            geometry = _geometry_to_json(geometry)
+            geometry = geometry_to_json(geometry)
         yield {
             "type": "Feature",
             "properties": dict(row),
@@ -187,7 +168,7 @@ def transform_dump_epsg(dump_filepath, fieldnames, source_epsg, target_epsg):
 
             geometry = transform_epsg(source_epsg, target_epsg, row["geometry"])
             row["geometry"] = (
-                _geometry_to_json(geometry) if geometry is not None else None
+                geometry_to_json(geometry) if geometry is not None else None
             )
             yield (row)
 

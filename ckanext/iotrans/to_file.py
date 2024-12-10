@@ -70,6 +70,25 @@ FIONA_DRIVERS = {
 }
 
 
+def geometry_to_json(geom: fiona.Geometry) -> str:
+    """_geometry_to_json
+
+    :param geom: the fiona geometry
+    :type geom: Geometry
+    :return: geojson compliant JSON string
+    :rtype: str
+    """
+    geom_dict = dict(geom)
+
+    # GeoJSON spec does not indicate a case for `null` to be valid json (only mentions
+    # it to be a list of geometries or DNE in the json at all.)
+    # So if it is explicitly None, remove it before jsonifying
+    if "geometries" in geom_dict and geom_dict.get("geometries") is None:
+        del geom_dict["geometries"]
+
+    return json.dumps(geom_dict)
+
+
 #####################
 # Classes           #
 #####################
@@ -234,7 +253,8 @@ class SpatialHandler(ToFileHandler, ABC):
             converted_geom = fiona.transform.transform_geom(
                 from_epsg(self.source_epsg), from_epsg(self.target_epsg), geom
             )
-            row["geometry"] = converted_geom
+            geom_json = geometry_to_json(converted_geom)
+            row["geometry"] = geom_json
             yield row
 
     def format_row(
@@ -251,7 +271,7 @@ class SpatialHandler(ToFileHandler, ABC):
 class SpatialToCsv(SpatialHandler):
 
     def name(self) -> str:
-        return f"{self.target_format}"
+        return f"csv-{self.target_epsg}"
 
     def save_to_file(self, row_generator):
         csv.field_size_limit(sys.maxsize)
