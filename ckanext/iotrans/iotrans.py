@@ -4,6 +4,7 @@ These function are the top level logic for this extension's CKAN actions
 
 import ckan.plugins.toolkit as tk
 from ckan.common import config
+import csv
 
 import tempfile
 import shutil
@@ -15,7 +16,7 @@ from fiona.crs import from_epsg
 from .utils import generic
 from datetime import datetime
 from memory_profiler import memory_usage, profile
-
+from to_file import is_fasley, ToFileParamsSpatial, ToFileParamsNonSpatial, spatial_to_file_factory, non_spatial_to_file_factory, DatastoreResourceMetadata
 from pydantic import BaseModel, ValidationError
 
 from typing import Dict, Any, Literal, List, Tuple, Optional
@@ -55,14 +56,11 @@ def to_file(context, data_dict):
 
     logging.info("[ckanext-iotrans] Starting iotrans.to_file")
 
-    temp_dir = tempfile.mkdtemp(dir=config.get("ckan.storage_path"))
-    output = {}
-
     # Make sure the resource id provided is for a datastore resource
     resource_metadata = tk.get_action("resource_show")(
         context, {"id": data.resource_id}
     )
-    if _is_fasley(resource_metadata.get("datastore_active", None)):
+    if is_fasley(resource_metadata.get("datastore_active", None)):
         raise tk.ValidationError(
             {"constraints": [f"{data.resource_id} is not a datastore resource!"]}
         )
@@ -83,6 +81,8 @@ def to_file(context, data_dict):
     # if "geometry" in fieldnames:
     # dump_suffix = "csv-dump" # Why is csv-dump important? is it not still a csv?
 
+    
+    temp_dir = tempfile.mkdtemp(dir=config.get("ckan.storage_path"))
     dump_filepath = generic.get_filepath(
         temp_dir, resource_metadata["name"], data_dict.get("source_epsg", None), "csv"
     )
@@ -95,57 +95,27 @@ def to_file(context, data_dict):
             context,
         ),
     )
-    if is_spatial:
-        _to_file_spatial(
-            output_dir=temp_dir,
-            resource_metadata=resource_metadata,
-            data=data,
-            datastore_resource=datastore_resource,
-            dump_filepath=dump_filepath,
-        )
-    else:
-        to_file_non_spatial(data_dict)
+    datastore_metadata:DatastoreResourceMetadata = {
+        "fields": datastore_resource["fields"],
+        "geometry_type": json.loads(
+            datastore_resource["records"][0]["geometry"]
+        )["type"],
+        "name":resource_metadata["name"],
+    }
 
-    # We now have our working dump file. The request tells us how to use it
-    # Let's first determine whether geometry is involved
-
-    # For geometric transformations...
-
-
-    # For non geometric transformations...
-    elif "geometry" not in fieldnames:
-        logging.info("[ckanext-iotrans] Non geometric iotrans transformation started")
-        # for each target format...
-        for target_format in data_dict["target_formats"]:
-            logging.info("[ckanext-iotrans] starting {}".format(target_format))
-            output_filepath = generic.get_filepath(
-                temp_dir, resource_metadata["name"], None, target_format
-            )
-
-            # CSV
-            if target_format.lower() == "csv":
-                output = generic.append_to_output(
-                    output, target_format, None, dump_filepath
-                )
-
-            # JSON
-            elif target_format.lower() == "json":
-                generic.write_to_json(
-                    dump_filepath, output_filepath, datastore_resource, context
-                )
-                output = generic.append_to_output(
-                    output, target_format, None, output_filepath
-                )
-
-            # XML
-            elif target_format.lower() == "xml":
-                generic.write_to_xml(dump_filepath, output_filepath)
-                output = generic.append_to_output(
-                    output, target_format, None, output_filepath
-                )
-
-    logging.info("[ckanext-iotrans] finished file creation")
-
+    handler_factory = (
+        spatial_to_file_factory if is_spatial else non_spatial_to_file_factory
+    )
+    handlers = handler_factory(
+        params=data,
+        out_dir=temp_dir,
+        datastore_metadata=datastore_metadata,
+    )
+    output = {}
+    with open(dump_filepath,'r') as csv_file:
+        for handler in handlers:
+            row_generator = csv.DictReader(csv_file, fieldnames=fieldnames)
+            output[handler.name()] = handler.to_file(row_generator)
     return output
 
 
