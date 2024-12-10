@@ -74,7 +74,7 @@ class TestIOTransNonSpatial(object):
         result = helpers.call_action("to_file", **data)
 
         # check if outputs are correct
-        test_path = result[f"{file_format}-None"]
+        test_path = result[f"{file_format}"]
 
         # compare new file to correct file
         correct_filepath = os.path.join(
@@ -114,7 +114,7 @@ class TestIOTransNonSpatial(object):
         result = helpers.call_action("to_file", **data)
 
         # check if outputs are correct
-        test_path = result[f"{file_format}-None"]
+        test_path = result[file_format]
 
         # compare new file to correct file
         correct_filepath = os.path.join(

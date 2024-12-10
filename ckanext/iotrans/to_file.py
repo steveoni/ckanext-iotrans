@@ -216,9 +216,6 @@ class SpatialHandler(ToFileHandler, ABC):
         self.output_filepath = output_filepath
         self.datastore_metadata = datastore_metadata
 
-    def name(self) -> str:
-        return f"{self.target_format} - {self.target_epsg}"
-
     @property
     def field_ids(self):
         return [field["id"] for field in self.datastore_metadata["fields"]]
@@ -252,6 +249,9 @@ class SpatialHandler(ToFileHandler, ABC):
 
 
 class SpatialToCsv(SpatialHandler):
+
+    def name(self) -> str:
+        return f"{self.target_format}"
 
     def save_to_file(self, row_generator):
         csv.field_size_limit(sys.maxsize)
@@ -314,6 +314,9 @@ class SpatialToSpatial(SpatialHandler):
     #############################
     # Hooks                     #
     #############################
+
+    def name(self) -> str:
+        return f"{self.target_format} - {self.target_epsg}"
 
     def format_row(self, row_generator):
         col_map = self._get_col_map()
@@ -444,7 +447,7 @@ def spatial_to_file_factory(
         for target_format in params.target_formats:
 
             output_filepath = os.path.join(
-                out_dir, f"{datastore_metadata.name} - {target_epsg}.{target_format}"
+                out_dir, f"{datastore_metadata['name']} - {target_epsg}.{target_format}"
             )
 
             handler = handler_map.get(target_format, SpatialToSpatial)(

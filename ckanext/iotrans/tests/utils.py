@@ -48,7 +48,6 @@ def _compare_json_small(json_path_1, json_path_2) -> Tuple[bool, str]:
     with open(json_path_2) as json_file_2:
         json_2 = json.load(json_file_2)
 
-    breakpoint()
     return json_1 == json_2
 
 
