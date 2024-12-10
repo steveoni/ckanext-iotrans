@@ -21,6 +21,7 @@ from pydantic import BaseModel, ValidationError
 
 from typing import Dict, Any, Literal, List, Tuple, Optional
 from typing import TypedDict
+import re
 
 EPSG_TYPES = Literal[4326, 2952]
 
@@ -122,11 +123,109 @@ def to_csv_dump(resource_id, generator) -> str:
 
 
 from typing import Callable, Generator
+import sys
 
 
 from fiona.transform import transform_geom
 
 from abc import ABC
+import xml.etree.cElementTree as ET
+
+
+class ToFileNonSpatial:
+
+    def __init__(
+        self,
+        target_format: NON_SPATIAL_TARGET_FORMAT,
+        output_filepath,
+        datastore_fields,
+    ):
+        self.target_format: NON_SPATIAL_TARGET_FORMAT = target_format
+        self.output_filepath = output_filepath
+        self.datastore_fields = datastore_fields
+
+    def to_file(self, row_generator: Generator[Dict, None, None]):
+        handlers: Dict[NON_SPATIAL_TARGET_FORMAT, Callable] = {
+            "csv": self.to_csv,
+            "json": self.to_json,
+            "xml": self.to_xml,
+        }
+        handler = handlers.get(self.target_format)
+        if handler is None:
+            raise ValueError(f"{self.target_format} is not an accepted target format")
+        return handler(row_generator, self.output_filepath, self.datastore_fields)
+
+    def _to_csv(
+        self,
+        row_generator: Generator[Dict, None, None],
+    ) -> None:
+        with open(self.output_filepath, "w") as csv_file:
+            writer = csv.DictWriter(
+                csv_file, fieldnames=[field["id"] for field in self.datastore_fields]
+            )
+            writer.writeheader()
+            writer.writerows(row_generator)
+
+    @staticmethod
+    def _row_to_json_generator(
+        csv: Generator[Dict, None, None]
+    ) -> Generator[str, None, None]:
+        n_rows = len(csv)
+        i = 0
+        for row in csv:
+            json_str = json.dumps(row)
+            i += 1
+            if i < n_rows:
+                json_str = f"{json_str},"
+            yield json_str
+
+    def _to_json(
+        self,
+        row_generator: Generator[Dict, None, None],
+    ) -> None:
+        with open(self.output_filepath, "w") as json_file:
+            # write starting bracket
+            json_file.write("[")
+            json_file.writelines(self._row_to_json_generator(row_generator))
+            json_file.write("]")
+
+    def _to_xml(
+        self,
+        row_generator: Generator[Dict, None, None],
+    ) -> None:
+        XML_ENCODING = "utf-8"
+        root_tag = "DATA"
+        chunk_size = 5000
+
+        with open(self.output_filepath, "w", encoding=XML_ENCODING) as xml_file:
+
+            xml_file.write(f'<?xml version="1.0" encoding="{XML_ENCODING}"?>\n')
+            xml_file.write(f"<{root_tag}>")
+            i = 0
+
+            # chunk writes to disk based on chunk_size so that:
+            # 1. we don't do it all in one batch and end up w/ a MemoryError
+            # 2. we don't perform disk io for every single record which is inefficient
+            chunk = []
+
+            for csv_row in row_generator:
+                xml_row = ET.Element("ROW", count=str(i))
+                for key, value in csv_row.items():
+                    keyname = re.sub(r"[^a-zA-Z0-9-_]", "", key)
+                    ET.SubElement(xml_row, keyname).text = value
+                chunk.append(ET.tostring(xml_row, encoding="unicode"))
+
+                i += 1
+
+                if len(chunk) >= chunk_size:
+                    xml_file.writelines(chunk)
+                    chunk = []
+
+            # Flush any rows in the remaining chunk
+            if chunk:
+                xml_file.writelines(chunk)
+
+            xml_file.write(f"</{root_tag}>")
 
 
 class ToFileSpatialTemplate(ABC):
@@ -150,8 +249,8 @@ class ToFileSpatialTemplate(ABC):
     def to_file(self, input_row_generator: Generator[Dict, None, None]):
         transformed_geom = self.transform_geom(input_row_generator)
         formatted_row = self.format_row(transformed_geom)
-        output_filepath = self.save_to_file(formatted_row)
-        return output_filepath
+        self.save_to_file(formatted_row)
+        return self.output_filepath
 
     def transform_geom(
         self, row_generator: Generator[Dict, None, None]
@@ -175,9 +274,6 @@ class ToFileSpatialTemplate(ABC):
         raise NotImplementedError("to_file not implemented")
 
 
-import sys
-
-
 class ToFileSpatialCsv(ToFileSpatialTemplate):
 
     def save_to_file(self, row_generator):
@@ -188,7 +284,7 @@ class ToFileSpatialCsv(ToFileSpatialTemplate):
             writer.writerows(row_generator)
 
 
-class ToFileSpatialShp(ToFileSpatialTemplate):
+class ToFileSpatialToSpatial(ToFileSpatialTemplate):
 
     def __init__(
         self,
@@ -196,20 +292,18 @@ class ToFileSpatialShp(ToFileSpatialTemplate):
         source_epsg,
         target_epsg,
         output_filepath,
-        # extras. TODO field_ids and geometry_type can be derrived from
-        # datastore_resource -> perhaps we should just pass that
         datastore_fields: List[Dict],
+        # additional
         geometry_type: str,
     ):
-        assert target_epsg == "shp"
         super().__init__(source_epsg, target_epsg, output_filepath, datastore_fields)
         # TODO: perhaps combine geom + datastore_fields in one obj representing 'info
         # about the datastore representation
         self.geometry_type = geometry_type
 
-    @property
-    def field_ids(self):
-        return [field["id"] for field in self.datastore_fields]
+    #############################
+    # Private                   #
+    #############################
 
     @staticmethod
     def _python_type_to_fiona_type(python_type: str) -> str:
@@ -226,14 +320,8 @@ class ToFileSpatialShp(ToFileSpatialTemplate):
         return ckan_to_fiona_type_map[no_chars]
 
     def _get_col_map(self) -> Dict[str, str]:
-        long_non_geom_fields = [
-            field
-            for field in self.field_id
-            if (field != "geometry" and len(field) > 10)
-        ]
-        return {
-            field: f"{field[:7]}{i+1}" for i, field in enumerate(long_non_geom_fields)
-        }
+        # by default no col-map (children can override)
+        return {}
 
     def _get_schema(self) -> Dict[str, str]:
         geom_type_map = {
@@ -259,6 +347,10 @@ class ToFileSpatialShp(ToFileSpatialTemplate):
             "properties": properties,
         }
 
+    #############################
+    # Hooks                     #
+    #############################
+
     def format_row(self, row_generator):
         col_map = self._get_col_map()
         for row in row_generator:
@@ -272,6 +364,50 @@ class ToFileSpatialShp(ToFileSpatialTemplate):
                 "properties": properties,
                 "geometry": geometry,
             }
+
+    def save_to_file(self, row_generator):
+        schema = self._get_schema()
+        with fiona.open(
+            self.output_filepath,
+            "w",
+            schema=schema,
+            driver=FIONA_DRIVERS[self.target_format],
+            crs=from_epsg(self.target_epsg),
+        ) as outlayer:
+            outlayer.writerecords(row_generator)
+
+
+class ToFileSpatialShp(ToFileSpatialToSpatial):
+
+    def __init__(
+        self,
+        # inherited
+        source_epsg,
+        target_epsg,
+        output_filepath,
+        # extras. TODO field_ids and geometry_type can be derrived from
+        # datastore_resource -> perhaps we should just pass that
+        datastore_fields: List[Dict],
+        geometry_type: str,
+    ):
+        assert target_epsg == "shp"
+        super().__init__(
+            source_epsg, target_epsg, output_filepath, datastore_fields, geometry_type
+        )
+
+    #############################
+    # Private                   #
+    #############################
+
+    def _get_col_map(self) -> Dict[str, str]:
+        long_non_geom_fields = [
+            field
+            for field in self.field_id
+            if (field != "geometry" and len(field) > 10)
+        ]
+        return {
+            field: f"{field[:7]}{i+1}" for i, field in enumerate(long_non_geom_fields)
+        }
 
     def _write_fields_file(self, path):
         col_map = self._get_col_map()
@@ -290,6 +426,10 @@ class ToFileSpatialShp(ToFileSpatialTemplate):
 
         for file in files:
             os.remove(file)
+
+    #############################
+    # Hooks                     #
+    #############################
 
     def save_to_file(self, row_generator):
         schema = self._get_schema()
