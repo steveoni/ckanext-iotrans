@@ -1,5 +1,5 @@
 import ckan.plugins as plugins
-from .utils import generic
+from . import utils
 from . import iotrans
 
 
@@ -34,6 +34,6 @@ class IotransPlugin(plugins.SingletonPlugin):
 
     def get_auth_functions(self):
         return {
-            "to_file": generic.iotrans_auth_function,
-            "prune": generic.iotrans_auth_function,
+            "to_file": utils.iotrans_auth_function,
+            "prune": utils.iotrans_auth_function,
         }

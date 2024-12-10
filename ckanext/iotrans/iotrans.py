@@ -13,14 +13,21 @@ import json
 import fiona
 import logging
 from fiona.crs import from_epsg
-from .utils import generic
+from . import utils
 from datetime import datetime
 from memory_profiler import memory_usage, profile
-from to_file import is_fasley, ToFileParamsSpatial, ToFileParamsNonSpatial, spatial_to_file_factory, non_spatial_to_file_factory, DatastoreResourceMetadata
+from .to_file import (
+    ToFileParamsSpatial,
+    ToFileParamsNonSpatial,
+    spatial_to_file_factory,
+    non_spatial_to_file_factory,
+    DatastoreResourceMetadata,
+)
 from pydantic import BaseModel, ValidationError
 
 from typing import Dict, Any, Literal, List, Tuple, Optional
 from typing import TypedDict
+
 
 @tk.side_effect_free
 def to_file(context, data_dict):
@@ -46,6 +53,7 @@ def to_file(context, data_dict):
     except ValidationError as spatial_valid_error:
         try:
             data = ToFileParamsNonSpatial(**data_dict)
+            is_spatial = False
         except ValidationError as non_spatial_valid_error:
             raise tk.ValidationError(
                 {
@@ -54,13 +62,11 @@ def to_file(context, data_dict):
                 }
             ) from spatial_valid_error
 
-    logging.info("[ckanext-iotrans] Starting iotrans.to_file")
-
     # Make sure the resource id provided is for a datastore resource
     resource_metadata = tk.get_action("resource_show")(
         context, {"id": data.resource_id}
     )
-    if is_fasley(resource_metadata.get("datastore_active", None)):
+    if utils.is_falsey(resource_metadata.get("datastore_active", None)):
         raise tk.ValidationError(
             {"constraints": [f"{data.resource_id} is not a datastore resource!"]}
         )
@@ -68,52 +74,61 @@ def to_file(context, data_dict):
     datastore_resource = tk.get_action("datastore_search")(
         context, {"resource_id": data.resource_id}
     )
+    if len(datastore_resource["records"]) < 1:
+        raise tk.ValidationError(
+            {"constraints": [f"Datastore resource {data.resource_id} is empty"]}
+        )
 
-    # get fieldnames for the resource
-    fieldnames = [field["id"] for field in datastore_resource["fields"]]
-
-    # create working CSV dump filepath. This file will be used for all outputs
-    # We will use it as an output if we're not dealing w geometric data
-    # We will not use it as an output if we are dealing w geometric data
-    # This is because geometric data gets processed specially, and we want
-    # that processing to be standard across all geometric outputs
-
-    # if "geometry" in fieldnames:
-    # dump_suffix = "csv-dump" # Why is csv-dump important? is it not still a csv?
-
-    
+    # Download all rows to a local csv in a temporary directory. Effictively a local
+    # cache on disk. 2 reasons:
+    # 1. We can't hold files this large in memory typically
+    # 2. We need to re-use these data multiple times; we can at least limit db queries
+    #    to a constant rathern than N times (where N is the number of outputs we target)
     temp_dir = tempfile.mkdtemp(dir=config.get("ckan.storage_path"))
-    dump_filepath = generic.get_filepath(
+    dump_filepath = utils.get_filepath(
         temp_dir, resource_metadata["name"], data_dict.get("source_epsg", None), "csv"
     )
-    generic.write_to_csv(
+    fieldnames = [field["id"] for field in datastore_resource["fields"]]
+    utils.write_to_csv(
         dump_filepath,
         fieldnames,
-        generic.dump_generator(
-            data_dict["resource_id"],
+        utils.dump_generator(
+            data.resource_id,
             fieldnames,
             context,
         ),
     )
-    datastore_metadata:DatastoreResourceMetadata = {
+
+    geometry_type = (
+        json.loads(datastore_resource["records"][0]["geometry"])["type"]
+        if is_spatial
+        else None
+    )
+    datastore_metadata: DatastoreResourceMetadata = {
         "fields": datastore_resource["fields"],
-        "geometry_type": json.loads(
-            datastore_resource["records"][0]["geometry"]
-        )["type"],
-        "name":resource_metadata["name"],
+        "geometry_type": geometry_type,
+        "name": resource_metadata["name"],
     }
 
+    # Depending on whether spatial or not, we need a factory method that will generate
+    # all the output handlers. These factory methods should be the same shape (params +
+    # return types)
     handler_factory = (
         spatial_to_file_factory if is_spatial else non_spatial_to_file_factory
     )
+    out_dir = os.path.join(temp_dir, "output")
+    os.makedirs(out_dir)
     handlers = handler_factory(
         params=data,
-        out_dir=temp_dir,
+        out_dir=out_dir,
         datastore_metadata=datastore_metadata,
     )
+
+    # Iterate through handlers produced by the factory for each we run to_file
+    # (1 'handler' = 1 output file)
     output = {}
-    with open(dump_filepath,'r') as csv_file:
-        for handler in handlers:
+    for handler in handlers:
+        with open(dump_filepath, "r") as csv_file:
             row_generator = csv.DictReader(csv_file, fieldnames=fieldnames)
             output[handler.name()] = handler.to_file(row_generator)
     return output
@@ -232,7 +247,7 @@ def to_file_profile_testing(context, data_dict):
             if "geometry" in fieldnames:
                 dump_suffix = "csv-dump"
 
-            dump_filepath = generic.get_filepath(
+            dump_filepath = utils.get_filepath(
                 dir_path,
                 resource_metadata["name"],
                 data_dict.get("source_epsg", None),
@@ -252,10 +267,10 @@ def to_file_profile_testing(context, data_dict):
             )
             if data_dict["resource_id"] not in big_resource_ids:
                 print(f"downloading and writing to intermediary csv: {dump_filepath}")
-                generic.write_to_csv(
+                utils.write_to_csv(
                     dump_filepath,
                     fieldnames,
-                    generic.dump_generator(
+                    utils.dump_generator(
                         data_dict["resource_id"],
                         fieldnames,
                         context,
@@ -345,13 +360,13 @@ def to_file_profile_testing(context, data_dict):
                             and target_epsg == data_dict["source_epsg"]
                         ):
 
-                            output_filepath = generic.get_filepath(
+                            output_filepath = utils.get_filepath(
                                 dir_path, resource_metadata["name"], target_epsg, "csv"
                             )
-                            generic.write_to_csv(
+                            utils.write_to_csv(
                                 output_filepath,
                                 fieldnames,
-                                generic.transform_dump_epsg(
+                                utils.transform_dump_epsg(
                                     dump_filepath,
                                     fieldnames,
                                     data_dict["source_epsg"],
@@ -359,7 +374,7 @@ def to_file_profile_testing(context, data_dict):
                                 ),
                             )
 
-                            output = generic.append_to_output(
+                            output = utils.append_to_output(
                                 output, target_format, target_epsg, output_filepath
                             )
 
@@ -369,20 +384,20 @@ def to_file_profile_testing(context, data_dict):
                             target_format.lower() == "csv"
                             and target_epsg != data_dict["source_epsg"]
                         ):
-                            output_filepath = generic.get_filepath(
+                            output_filepath = utils.get_filepath(
                                 dir_path, resource_metadata["name"], target_epsg, "csv"
                             )
-                            generic.write_to_csv(
+                            utils.write_to_csv(
                                 output_filepath,
                                 fieldnames,
-                                generic.transform_dump_epsg(
+                                utils.transform_dump_epsg(
                                     dump_filepath,
                                     fieldnames,
                                     data_dict["source_epsg"],
                                     target_epsg,
                                 ),
                             )
-                            output = generic.append_to_output(
+                            output = utils.append_to_output(
                                 output, target_format, target_epsg, output_filepath
                             )
 
@@ -436,7 +451,7 @@ def to_file_profile_testing(context, data_dict):
                                 "geometry": geometry_type,
                                 "properties": fields_metadata,
                             }
-                            output_filepath = generic.get_filepath(
+                            output_filepath = utils.get_filepath(
                                 dir_path,
                                 resource_metadata["name"],
                                 target_epsg,
@@ -454,7 +469,7 @@ def to_file_profile_testing(context, data_dict):
                                     breakpoint()
                                     print(f"shp to {dump_filepath}")
                                     outlayer.writerecords(
-                                        generic.dump_to_geospatial_generator(
+                                        utils.dump_to_geospatial_generator(
                                             dump_filepath,
                                             fieldnames,
                                             target_format,
@@ -516,7 +531,7 @@ def to_file_profile_testing(context, data_dict):
                                 ) as outlayer:
                                     breakpoint()
                                     outlayer.writerecords(
-                                        generic.dump_to_geospatial_generator(
+                                        utils.dump_to_geospatial_generator(
                                             dump_filepath,
                                             fieldnames,
                                             target_format,
@@ -527,7 +542,7 @@ def to_file_profile_testing(context, data_dict):
                                     )
                                     outlayer.close()
 
-                                output_filepath = generic.write_to_zipped_shapefile(
+                                output_filepath = utils.write_to_zipped_shapefile(
                                     fieldnames,
                                     dir_path,
                                     resource_metadata,
@@ -535,7 +550,7 @@ def to_file_profile_testing(context, data_dict):
                                     col_map,
                                 )
 
-                            output = generic.append_to_output(
+                            output = utils.append_to_output(
                                 output, target_format, target_epsg, output_filepath
                             )
 
@@ -547,30 +562,30 @@ def to_file_profile_testing(context, data_dict):
                 # for each target format...
                 for target_format in data_dict["target_formats"]:
                     logging.info("[ckanext-iotrans] starting {}".format(target_format))
-                    output_filepath = generic.get_filepath(
+                    output_filepath = utils.get_filepath(
                         dir_path, resource_metadata["name"], None, target_format
                     )
 
                     # CSV
                     if target_format.lower() == "csv":
-                        output = generic.append_to_output(
+                        output = utils.append_to_output(
                             output, target_format, None, dump_filepath
                         )
 
                     # JSON
                     elif target_format.lower() == "json":
-                        generic.write_to_json(
+                        utils.write_to_json(
                             dump_filepath, output_filepath, datastore_resource, context
                         )
-                        output = generic.append_to_output(
+                        output = utils.append_to_output(
                             output, target_format, None, output_filepath
                         )
 
                     # XML
                     elif target_format.lower() == "xml":
                         print(f"writing xml to {output_filepath}")
-                        generic.write_to_xml(dump_filepath, output_filepath)
-                        output = generic.append_to_output(
+                        utils.write_to_xml(dump_filepath, output_filepath)
+                        output = utils.append_to_output(
                             output, target_format, None, output_filepath
                         )
                         print("done xml")

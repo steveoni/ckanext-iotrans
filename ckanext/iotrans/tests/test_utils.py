@@ -4,7 +4,7 @@ Test module for various iotrans functions
 
 from .utils import CORRECT_DIR_PATH, TEST_TMP_PATH
 
-import ckanext.iotrans.utils.generic as generic
+import ckanext.iotrans.utils as utils
 import filecmp
 import json
 import os
@@ -30,7 +30,7 @@ def test_dump_json_filepath():
         os.path.join(CORRECT_DIR_PATH, "correct_datastore_resource.json")
     ) as jsonfile:
         correct_datastore_resource = json.load(jsonfile)
-        generic.write_to_json(
+        utils.write_to_json(
             correct_dump_csv_filepath, filepath, correct_datastore_resource
         )
 
@@ -49,7 +49,7 @@ def test_dump_xml_filepath():
         os.remove(filepath)
 
     # create test file
-    generic.write_to_xml(correct_dump_csv_filepath, filepath)
+    utils.write_to_xml(correct_dump_csv_filepath, filepath)
 
     # return test file location
     return filepath
@@ -78,7 +78,7 @@ def correct_geospatial_generator():
         "centre_type",
     ]
 
-    return generic.dump_to_geospatial_generator(
+    return utils.dump_to_geospatial_generator(
         correct_spatial_dump_csv_filepath,
         correct_spatial_csv_dump_fieldnames,
         "geojson",
@@ -90,7 +90,7 @@ def correct_geospatial_generator():
 def test_create_filepath_with_epsg():
     """test case for utils.create_filepath with an input epsg"""
     correct_filepath_with_epsg = os.path.join(TEST_TMP_PATH, "resource_name - 4326.csv")
-    test_filepath_with_epsg = generic.get_filepath(
+    test_filepath_with_epsg = utils.get_filepath(
         TEST_TMP_PATH, "resource_name", 4326, "csv"
     )
 
@@ -100,7 +100,7 @@ def test_create_filepath_with_epsg():
 def test_create_filepath_without_epsg():
     """test case for utils.create_filepath without an input epsg"""
     correct_filepath_without_epsg = os.path.join(TEST_TMP_PATH, "resource_name.csv")
-    test_filepath_no_epsg = generic.get_filepath(
+    test_filepath_no_epsg = utils.get_filepath(
         TEST_TMP_PATH, "resource_name", None, "csv"
     )
 
@@ -145,7 +145,7 @@ _valid_geometry = json.dumps({"type": "Point", "coordinates": [-122.4194, 37.774
 def test_transform_dump_epsg(tmp_path_factory, csv_data):
     dir_path = tmp_path_factory.mktemp("test-tmp")
     dump_suffix = "csv-dump"
-    dump_filepath = generic.get_filepath(dir_path, "test-resource", 4326, dump_suffix)
+    dump_filepath = utils.get_filepath(dir_path, "test-resource", 4326, dump_suffix)
 
     fieldnames = csv_data[0].keys()
 
@@ -160,7 +160,7 @@ def test_transform_dump_epsg(tmp_path_factory, csv_data):
     target_epsg = 4326
     result = [
         x
-        for x in generic.transform_dump_epsg(
+        for x in utils.transform_dump_epsg(
             dump_filepath=dump_filepath,
             fieldnames=fieldnames,
             source_epsg=source_epsg,

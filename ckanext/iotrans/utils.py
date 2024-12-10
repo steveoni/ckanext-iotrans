@@ -12,7 +12,10 @@ from fiona.transform import transform_geom
 from zipfile import ZipFile
 import xml.etree.cElementTree as ET
 from fiona import Geometry
-from typing import Dict
+from typing import Dict, Any
+from typing import Generator
+from .to_file import EPSG
+
 
 import ckan.plugins.toolkit as tk
 
@@ -34,6 +37,10 @@ def _geometry_to_json(geom: Geometry) -> str:
         del geom_dict["geometries"]
 
     return json.dumps(geom_dict)
+
+
+def is_falsey(arg: Any) -> bool:
+    return arg in ["false", "False", False]
 
 
 def transform_epsg(source_epsg, target_epsg, geometry):
@@ -113,14 +120,10 @@ def dump_generator(resource_id, fieldnames, context):
             break
 
 
-from typing import Generator
-from utils.to_file import EPSG_TYPES
-
-
 def transform_epsg_generator(
     generator: Generator[Dict, None, None],
-    source_epsg: EPSG_TYPES,
-    target_epsg: EPSG_TYPES,
+    source_epsg: EPSG,
+    target_epsg: EPSG,
     geometry_column: str,
     jsonify: bool,
 ) -> Generator[Dict, None, None]:
@@ -214,7 +217,6 @@ def write_to_csv(dump_filepath, fieldnames, rows_generator):
         writer = csv.DictWriter(f, fieldnames)
         writer.writeheader()
         writer.writerows(rows_generator)
-        f.close()
 
 
 def write_to_zipped_shapefile(

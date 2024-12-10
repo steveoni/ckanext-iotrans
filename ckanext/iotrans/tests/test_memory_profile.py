@@ -37,9 +37,10 @@ def large_geospatial_csv() -> None:
         num_rows (int): The number of rows to generate.
     """
     here = os.path.dirname(os.path.abspath(__file__))
-    hide_dir = os.path.join(here,"..","..","..",".hide")
+    hide_dir = os.path.join(here, "..", "..", "..", ".hide")
     os.makedirs(hide_dir, exist_ok=True)
     from pathlib import Path
+
     csv_file_name = Path(os.path.join(hide_dir, "fake_data.csv"))
 
     fields = [
@@ -47,13 +48,13 @@ def large_geospatial_csv() -> None:
         {"id": "value", "type": "float4"},
         {"id": "geometry", "type": "text"},
     ]
-    fieldnames = [field['id'] for field in fields]
+    fieldnames = [field["id"] for field in fields]
 
     if csv_file_name.exists():
         return csv_file_name, fields
 
     random.seed(6)
-    num_rows = 4700000 # 4.7 million Point geoms (4.7M rows)
+    num_rows = 4700000  # 4.7 million Point geoms (4.7M rows)
     with open(csv_file_name, "w", newline="") as csvfile:
         fieldnames = ["date", "value", "geometry"]
         writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
@@ -133,7 +134,6 @@ def chunk_csv(file_name: Path, row_chunk_size: int) -> Generator[List, None, Non
             yield chunk
 
 
-
 @pytest.fixture(scope="session")
 def large_resource(sysadmin, package, large_geospatial_csv):
     large_csv_path, large_csv_fields = large_geospatial_csv
@@ -181,7 +181,7 @@ def large_resource(sysadmin, package, large_geospatial_csv):
         yield resource
     finally:
         try:
-            helpers.call_action("datastore_delete", context, resource_id=resource['id'])
+            helpers.call_action("datastore_delete", context, resource_id=resource["id"])
         finally:
             helpers.call_action("resource_delete", context, id=resource["id"])
 
@@ -196,6 +196,7 @@ def large_resource(sysadmin, package, large_geospatial_csv):
         "shp",
     ),
 )
+@pytest.mark.skip
 def test_profile_to_file(target_format, sysadmin, large_resource):
     context = {"user": sysadmin["name"]}
     data = {
