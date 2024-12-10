@@ -5,7 +5,7 @@ These function are the top level logic for this extension's CKAN actions
 import ckan.plugins.toolkit as tk
 from ckan.common import config
 import csv
-
+from zipfile import ZipFile
 import tempfile
 import shutil
 import os
@@ -121,10 +121,205 @@ def to_csv_dump(resource_id, generator) -> str:
     return filepath
 
 
-from typing import Callable
+from typing import Callable, Generator
 
 
 from fiona.transform import transform_geom
+
+from abc import ABC
+
+
+class ToFileSpatialTemplate(ABC):
+
+    def __init__(
+        self,
+        source_epsg: EPSG_TYPES,
+        target_epsg: EPSG_TYPES,
+        output_filepath: str,
+        datastore_fields: List[Dict],
+    ):
+        self.source_epsg = source_epsg
+        self.target_epsg = target_epsg
+        self.output_filepath = output_filepath
+        self.datastore_fields = datastore_fields
+
+    @property
+    def field_ids(self):
+        return [field["id"] for field in self.datastore_fields]
+
+    def to_file(self, input_row_generator: Generator[Dict, None, None]):
+        transformed_geom = self.transform_geom(input_row_generator)
+        formatted_row = self.format_row(transformed_geom)
+        output_filepath = self.save_to_file(formatted_row)
+        return output_filepath
+
+    def transform_geom(
+        self, row_generator: Generator[Dict, None, None]
+    ) -> Generator[Dict, None, None]:
+        for row in row_generator:
+            geom = json.loads(row["geometry"])
+            converted_geom = transform_geom(
+                from_epsg(self.source_epsg), from_epsg(self.target_epsg), geom
+            )
+            row["geometry"] = converted_geom
+            yield row
+
+    def format_row(
+        self, row_generator: Generator[Dict, None, None]
+    ) -> Generator[Dict, None, None]:
+        # Default implementation is identity function (not transformation/modification)
+        for row in row_generator:
+            yield row
+
+    def save_to_file(self, row_generator: Generator[Dict, None, None]):
+        raise NotImplementedError("to_file not implemented")
+
+
+import sys
+
+
+class ToFileSpatialCsv(ToFileSpatialTemplate):
+
+    def save_to_file(self, row_generator):
+        csv.field_size_limit(sys.maxsize)
+        with open(self.output_filepath, "w", encoding="utf-8") as csv_file:
+            writer = csv.DictWriter(csv_file, fieldnames=self.field_ids)
+            writer.writeheader()
+            writer.writerows(row_generator)
+
+
+class ToFileSpatialShp(ToFileSpatialTemplate):
+
+    def __init__(
+        self,
+        # inherited
+        source_epsg,
+        target_epsg,
+        output_filepath,
+        # extras. TODO field_ids and geometry_type can be derrived from
+        # datastore_resource -> perhaps we should just pass that
+        datastore_fields: List[Dict],
+        geometry_type: str,
+    ):
+        assert target_epsg == "shp"
+        super().__init__(source_epsg, target_epsg, output_filepath, datastore_fields)
+        # TODO: perhaps combine geom + datastore_fields in one obj representing 'info
+        # about the datastore representation
+        self.geometry_type = geometry_type
+
+    @property
+    def field_ids(self):
+        return [field["id"] for field in self.datastore_fields]
+
+    @staticmethod
+    def _python_type_to_fiona_type(python_type: str) -> str:
+        ckan_to_fiona_type_map = {
+            "text": "str",
+            "date": "str",
+            "timestamp": "str",
+            "float": "float",
+            "int": "int",
+            "numeric": "float",
+            "time": "str",
+        }
+        no_chars = "".join([char for char in python_type if not char.isdigit()])
+        return ckan_to_fiona_type_map[no_chars]
+
+    def _get_col_map(self) -> Dict[str, str]:
+        long_non_geom_fields = [
+            field
+            for field in self.field_id
+            if (field != "geometry" and len(field) > 10)
+        ]
+        return {
+            field: f"{field[:7]}{i+1}" for i, field in enumerate(long_non_geom_fields)
+        }
+
+    def _get_schema(self) -> Dict[str, str]:
+        geom_type_map = {
+            "Point": "MultiPoint",
+            "LineString": "MultiLineString",
+            "Polygon": "MultiPolygon",
+            "MultiPoint": "MultiPoint",
+            "MultiLineString": "MultiLineString",
+            "MultiPolygon": "MultiPolygon",
+        }
+        col_map = self._get_col_map()
+        non_geom_fields = [
+            field for field in self.datastore_fields if field["id"] != "geometry"
+        ]
+
+        properties = {}
+        for field in non_geom_fields:
+            key = col_map.get(field["id"], field["id"])
+            properties[key] = self._python_type_to_fiona_type(field["type"])
+
+        return {
+            "geometry": geom_type_map[self.geometry_type],
+            "properties": properties,
+        }
+
+    def format_row(self, row_generator):
+        col_map = self._get_col_map()
+        for row in row_generator:
+            geometry = row["geometry"]
+            properties = {}
+            for key, value in row.items():
+                mapped_key = col_map.get(key, key)
+                properties[mapped_key] = value
+            yield {
+                "type": "Feature",
+                "properties": properties,
+                "geometry": geometry,
+            }
+
+    def _write_fields_file(self, path):
+        col_map = self._get_col_map()
+        with open(path, "w", encodoing="utf-8") as fields_file:
+            writer = csv.DictWriter(fields_file, fieldnames=("field", "name"))
+            writer.writeheader()
+            writer.writerows(
+                {"field": col_map.get(field_id, field_id), "name": field_id}
+                for field_id in self.field_ids
+            )
+
+    def _zip_files(self, output_filepath: str, files: List[str]) -> None:
+        with ZipFile(output_filepath, "w") as zipfile:
+            for file in files:
+                zipfile.write(file)
+
+        for file in files:
+            os.remove(file)
+
+    def save_to_file(self, row_generator):
+        schema = self._get_schema()
+
+        shp_folder = os.path.join(
+            os.path.basename(os.path.join(self.output_filepath)),
+            "tmp-shp",
+        )
+        os.makedirs(shp_folder)
+
+        with fiona.open(
+            shp_folder,
+            "w",
+            schema=schema,
+            driver=FIONA_DRIVERS[self.target_format],
+            crs=from_epsg(self.target_epsg),
+        ) as outlayer:
+            outlayer.writerecords(row_generator)
+
+        shp_files = [
+            file
+            for file in os.listdir(shp_folder)
+            if os.path.splitext(file)[1] in ["shp", "cpg", "dbf", "prj", "shx"]
+        ]
+        # TODO need proper resource name here in this file (maybe?)
+        data_dict_path = os.path.join(shp_folder, "data-dictionary.csv")
+        self._write_fields_file(data_dict_path)
+        shp_files.append(data_dict_path)
+
+        self._zip_files(self.output_filepath, shp_files)
 
 
 class ToFileSpatialHandler:
