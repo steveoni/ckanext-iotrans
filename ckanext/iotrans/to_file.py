@@ -126,6 +126,7 @@ class NonSpatialHandler(ToFileHandler):
                 csv_file,
                 fieldnames=[field["id"] for field in self.datastore_metadata["fields"]],
             )
+            writer.writeheader()
             writer.writerows(row_generator)
         return self.output_filepath
 
@@ -134,6 +135,7 @@ class NonSpatialHandler(ToFileHandler):
         csv: Generator[Dict, None, None]
     ) -> Generator[str, None, None]:
         for row in csv:
+            breakpoint()
             yield json.dumps(row)
 
     @staticmethod
@@ -158,7 +160,7 @@ class NonSpatialHandler(ToFileHandler):
             json_file.writelines(
                 self._join_with_char(self._row_to_json_generator(row_generator), ",")
             )
-            json_file.write("]")
+            json_file.write("]\n")
         return self.output_filepath
 
     def _to_xml(

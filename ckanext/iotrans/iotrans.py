@@ -130,6 +130,7 @@ def to_file(context, data_dict):
     for handler in handlers:
         with open(dump_filepath, "r") as csv_file:
             row_generator = csv.DictReader(csv_file, fieldnames=fieldnames)
+            next(row_generator)  # skip header
             output[handler.name()] = handler.to_file(row_generator)
     return output
 
