@@ -266,8 +266,8 @@ class SpatialHandler(ToFileHandler, ABC):
     def to_file(self, input_row_generator: Generator[Dict, None, None]):
         transformed_geom = self.transform_geom(input_row_generator)
         formatted_row = self.format_row(transformed_geom)
-        self.save_to_file(formatted_row)
-        return self.output_filepath
+        output_path = self.save_to_file(formatted_row)
+        return output_path
 
     def _geom_to_multigeom(self, geom: fiona.Geometry) -> fiona.Geometry:
         multi_geom_type = self._MULTI_GEOM_MAPPING[geom.type]
@@ -336,6 +336,7 @@ class SpatialToCsv(SpatialHandler):
             writer = csv.DictWriter(csv_file, fieldnames=self.field_ids)
             writer.writeheader()
             writer.writerows(row_generator)
+        return self.output_filepath
 
 
 class SpatialToSpatial(SpatialHandler):
@@ -435,6 +436,7 @@ class SpatialToSpatial(SpatialHandler):
             crs=from_epsg(self.target_epsg),
         ) as outlayer:
             outlayer.writerecords(row_generator)
+        return self.output_filepath
 
 
 class SpatialToShp(SpatialToSpatial):
@@ -443,11 +445,14 @@ class SpatialToShp(SpatialToSpatial):
         self,
         source_epsg: EPSG,
         target_epsg: EPSG,
+        target_format: SPATIAL_TARGET_FORMAT,
         output_filepath: str,
         datastore_metadata: DatastoreResourceMetadata,
     ):
-        assert target_epsg == "shp"
-        super().__init__(source_epsg, target_epsg, output_filepath, datastore_metadata)
+        assert target_format == "shp"
+        super().__init__(
+            source_epsg, target_epsg, target_format, output_filepath, datastore_metadata
+        )
 
     #############################
     # Private                   #
@@ -456,7 +461,7 @@ class SpatialToShp(SpatialToSpatial):
     def _get_col_map(self) -> Dict[str, str]:
         long_non_geom_fields = [
             field
-            for field in self.field_id
+            for field in self.field_ids
             if (field != "geometry" and len(field) > 10)
         ]
         return {
@@ -465,7 +470,7 @@ class SpatialToShp(SpatialToSpatial):
 
     def _write_fields_file(self, path):
         col_map = self._get_col_map()
-        with open(path, "w", encodoing="utf-8") as fields_file:
+        with open(path, "w", encoding="utf-8") as fields_file:
             writer = csv.DictWriter(fields_file, fieldnames=("field", "name"))
             writer.writeheader()
             writer.writerows(
@@ -483,6 +488,8 @@ class SpatialToShp(SpatialToSpatial):
         for file in files:
             os.remove(file)
 
+        return out_path
+
     #############################
     # Hooks                     #
     #############################
@@ -490,11 +497,8 @@ class SpatialToShp(SpatialToSpatial):
     def save_to_file(self, row_generator):
         schema = self._get_schema()
 
-        shp_folder = os.path.join(
-            os.path.basename(os.path.join(self.output_filepath)),
-            "tmp-shp",
-        )
-        os.makedirs(shp_folder)
+        shp_folder = f"{os.path.splitext(self.output_filepath)[0]}-shp"
+        os.makedirs(shp_folder, exist_ok=True)
 
         with fiona.open(
             shp_folder,
@@ -505,18 +509,22 @@ class SpatialToShp(SpatialToSpatial):
         ) as outlayer:
             outlayer.writerecords(row_generator)
 
+        # collect shape files
         shp_files = [
             file
             for file in os.listdir(shp_folder)
             if os.path.splitext(file)[1] in ["shp", "cpg", "dbf", "prj", "shx"]
         ]
+
+        # write data dictionary (for column maps)
         data_dict_path = os.path.join(
             shp_folder, f"{self.datastore_metadata['name']}-data-dictionary.csv"
         )
         self._write_fields_file(data_dict_path)
         shp_files.append(data_dict_path)
 
-        self._zip_files(self.output_filepath, shp_files)
+        zip_filepath = self._zip_files(self.output_filepath, shp_files)
+        return zip_filepath
 
 
 #####################
