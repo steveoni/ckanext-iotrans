@@ -223,17 +223,41 @@ class NonSpatialHandler(ToFileHandler):
 
 class SpatialHandler(ToFileHandler, ABC):
 
+    # From https://fiona.readthedocs.io/en/latest/manual.html#geometry-types
+    _MULTI_GEOM_MAPPING = {
+        "Point": "MultiPoint",
+        "LineString": "MultiLineString",
+        "Polygon": "MultiPolygon",
+        "3D Point": "3D MultiPoint",
+        "3D LineString": "3D MultiLineString",
+        "3D Polygon": "3D MultiPolygon",
+        # already multi
+        "MultiPoint": "MultiPoint",
+        "MultiLineString": "MultiLineString",
+        "MultiPolygon": "MultiPolygon",
+        "3D MultiPoint": "3D MultiPoint",
+        "3D MultiLineString": "3D MultiLineString",
+        "3D MultiPolygon": "3D MultiPolygon",
+        "3D GeometryCollection": "3D MultiGeometryCollection",
+        "GeometryCollection": "GeometryCollection",
+    }
+
     def __init__(
         self,
         source_epsg: EPSG,
         target_epsg: EPSG,
+        target_format: SPATIAL_TARGET_FORMAT,
         output_filepath: str,
         datastore_metadata: DatastoreResourceMetadata,
     ):
         self.source_epsg = source_epsg
         self.target_epsg = target_epsg
+        self.target_format = target_format
         self.output_filepath = output_filepath
         self.datastore_metadata = datastore_metadata
+
+    def name(self) -> str:
+        return f"{self.target_format}-{self.target_epsg}"
 
     @property
     def field_ids(self):
@@ -245,16 +269,31 @@ class SpatialHandler(ToFileHandler, ABC):
         self.save_to_file(formatted_row)
         return self.output_filepath
 
+    def _geom_to_multigeom(self, geom: fiona.Geometry) -> fiona.Geometry:
+        multi_geom_type = self._MULTI_GEOM_MAPPING[geom.type]
+        if geom.type == multi_geom_type:
+            # already a multi-type
+            return geom
+        return fiona.Geometry(
+            **{
+                **dict(geom),
+                "type": multi_geom_type,
+                "coordinates": [geom.coordinates],
+            }
+        )
+
     def transform_geom(
         self, row_generator: Generator[Dict, None, None]
     ) -> Generator[Dict, None, None]:
         for row in row_generator:
             geom = json.loads(row["geometry"])
-            converted_geom = fiona.transform.transform_geom(
+            converted_geom: fiona.Geometry = fiona.transform.transform_geom(
                 from_epsg(self.source_epsg), from_epsg(self.target_epsg), geom
             )
-            geom_json = geometry_to_json(converted_geom)
-            row["geometry"] = geom_json
+            multi_geom = self._geom_to_multigeom(converted_geom)
+            # TODO jsonification should happen later
+            # geom_json = geometry_to_json(converted_geom)
+            row["geometry"] = multi_geom
             yield row
 
     def format_row(
@@ -270,8 +309,26 @@ class SpatialHandler(ToFileHandler, ABC):
 
 class SpatialToCsv(SpatialHandler):
 
-    def name(self) -> str:
-        return f"csv-{self.target_epsg}"
+    def __init__(
+        self,
+        source_epsg: EPSG,
+        target_epsg: EPSG,
+        target_format: SPATIAL_TARGET_FORMAT,
+        output_filepath: str,
+        datastore_metadata: DatastoreResourceMetadata,
+    ):
+        assert target_format == "csv"
+        super().__init__(
+            source_epsg, target_epsg, target_format, output_filepath, datastore_metadata
+        )
+
+    def format_row(
+        self, row_generator: Generator[Dict, None, None]
+    ) -> Generator[Dict, None, None]:
+        for row in row_generator:
+            # JSON stringify geometry so it gets written correctly to csv
+            row["geometry"] = geometry_to_json(row["geometry"])
+            yield row
 
     def save_to_file(self, row_generator):
         csv.field_size_limit(sys.maxsize)
@@ -289,6 +346,8 @@ class SpatialToSpatial(SpatialHandler):
 
     @staticmethod
     def _python_type_to_fiona_type(python_type: str) -> str:
+        # TODO can we replace with fiona.FIELD_TYPES_MAP
+        # See also prop_type
         ckan_to_fiona_type_map = {
             "text": "str",
             "date": "str",
@@ -326,8 +385,19 @@ class SpatialToSpatial(SpatialHandler):
             key = col_map.get(field["id"], field["id"])
             properties[key] = self._python_type_to_fiona_type(field["type"])
 
+        # geometry of type X gets mapped to MultiX, why?:
+        # - the `schema` param to fiona.open(...) requires _one_ geometry type to be
+        #   specified
+        # - this is likely because shp and gpkg (?) files only permit one type of geometry
+        #   per collection:
+        #   - shp: https://www.esri.com/content/dam/esrisites/sitecore-archive/Files/Pdfs/library/whitepapers/pdfs/shapefile.pdf
+        #     "All the non-Null shapes in a shapefile are required to be of the same
+        #      shape type"
+        #   - gpkg: <TODO: confirm>
+        geometry = geom_type_map[self.datastore_metadata["geometry_type"]]
+
         return {
-            "geometry": geom_type_map[self.datastore_metadata["geometry_type"]],
+            "geometry": geometry,
             "properties": properties,
         }
 
@@ -336,20 +406,23 @@ class SpatialToSpatial(SpatialHandler):
     #############################
 
     def name(self) -> str:
-        return f"{self.target_format} - {self.target_epsg}"
+        return f"{self.target_format}-{self.target_epsg}"
 
     def format_row(self, row_generator):
+        # TODO use real Properties and Feature fiona objects instead of Dicts
         col_map = self._get_col_map()
         for row in row_generator:
-            geometry = row["geometry"]
+            geometry: fiona.Geometry = row["geometry"]
             properties = {}
-            for key, value in row.items():
+            for key, value in [(k, v) for k, v in row.items() if k != "geometry"]:
                 mapped_key = col_map.get(key, key)
                 properties[mapped_key] = value
             yield {
                 "type": "Feature",
                 "properties": properties,
-                "geometry": geometry,
+                # "geometry": geometry,
+                # TODO maybe?
+                "geometry": dict(geometry),
             }
 
     def save_to_file(self, row_generator):
@@ -473,6 +546,7 @@ def spatial_to_file_factory(
             handler = handler_map.get(target_format, SpatialToSpatial)(
                 source_epsg=params.source_epsg,
                 target_epsg=target_epsg,
+                target_format=target_format,
                 output_filepath=output_filepath,
                 datastore_metadata=datastore_metadata,
             )
