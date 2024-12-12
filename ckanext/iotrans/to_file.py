@@ -9,11 +9,12 @@ import re
 import sys
 import xml.etree.cElementTree as ET
 from typing import TypedDict, Optional
-
 from fiona.crs import from_epsg
+from contextlib import contextmanager
 from pydantic import BaseModel
 import fiona
 import fiona.transform
+import shutil
 
 #####################
 # Types             #
@@ -459,23 +460,21 @@ class SpatialToShp(SpatialToSpatial):
     #############################
 
     def _get_col_map(self) -> Dict[str, str]:
-        long_non_geom_fields = [
-            field
-            for field in self.field_ids
-            if (field != "geometry" and len(field) > 10)
-        ]
-        return {
-            field: f"{field[:7]}{i+1}" for i, field in enumerate(long_non_geom_fields)
-        }
+        # TODO docs on why we truncate to 10 chars
+        if not any(len(field) > 10 for field in self.field_ids):
+            return {}
+        return {field: f"{field[:7]}{i+1}" for i, field in enumerate(self.field_ids)}
 
     def _write_fields_file(self, path):
         col_map = self._get_col_map()
         with open(path, "w", encoding="utf-8") as fields_file:
             writer = csv.DictWriter(fields_file, fieldnames=("field", "name"))
             writer.writeheader()
+            col_map = col_map
             writer.writerows(
                 {"field": col_map.get(field_id, field_id), "name": field_id}
                 for field_id in self.field_ids
+                if field_id != "geometry"
             )
 
     def _zip_files(self, output_filepath: str, files: List[str]) -> None:
@@ -483,12 +482,20 @@ class SpatialToShp(SpatialToSpatial):
         out_path = f"{os.path.splitext(output_filepath)[0]}.zip"
         with ZipFile(out_path, "w") as zipfile:
             for file in files:
-                zipfile.write(file)
-
-        for file in files:
-            os.remove(file)
+                zipfile.write(file, arcname=os.path.basename(file))
 
         return out_path
+
+    @staticmethod
+    @contextmanager
+    def _temp_directory(path: str) -> Generator[str, None, None]:
+        # Will fail if path exists (which is probably safer: we don't want to
+        # accidentally overwrite files, fail-fast instead)
+        os.mkdir(path)
+        try:
+            yield path
+        finally:
+            shutil.rmtree(path)
 
     #############################
     # Hooks                     #
@@ -497,33 +504,34 @@ class SpatialToShp(SpatialToSpatial):
     def save_to_file(self, row_generator):
         schema = self._get_schema()
 
-        shp_folder = f"{os.path.splitext(self.output_filepath)[0]}-shp"
-        os.makedirs(shp_folder, exist_ok=True)
+        with self._temp_directory(
+            f"{os.path.splitext(self.output_filepath)[0]}"
+        ) as shp_folder:
+            with fiona.open(
+                shp_folder,
+                "w",
+                schema=schema,
+                driver=FIONA_DRIVERS[self.target_format],
+                crs=from_epsg(self.target_epsg),
+            ) as outlayer:
+                outlayer.writerecords(row_generator)
 
-        with fiona.open(
-            shp_folder,
-            "w",
-            schema=schema,
-            driver=FIONA_DRIVERS[self.target_format],
-            crs=from_epsg(self.target_epsg),
-        ) as outlayer:
-            outlayer.writerecords(row_generator)
+            # collect shape files
+            shp_files = [
+                os.path.join(shp_folder, file)
+                for file in os.listdir(shp_folder)
+                if os.path.splitext(file)[1] in [".shp", ".cpg", ".dbf", ".prj", ".shx"]
+            ]
 
-        # collect shape files
-        shp_files = [
-            file
-            for file in os.listdir(shp_folder)
-            if os.path.splitext(file)[1] in ["shp", "cpg", "dbf", "prj", "shx"]
-        ]
+            # write fields.csv (documenting column maps)
+            data_dict_path = os.path.join(
+                shp_folder, f"{self.datastore_metadata['name']} fields.csv"
+            )
+            self._write_fields_file(data_dict_path)
+            shp_files.append(data_dict_path)
 
-        # write data dictionary (for column maps)
-        data_dict_path = os.path.join(
-            shp_folder, f"{self.datastore_metadata['name']}-data-dictionary.csv"
-        )
-        self._write_fields_file(data_dict_path)
-        shp_files.append(data_dict_path)
+            zip_filepath = self._zip_files(self.output_filepath, shp_files)
 
-        zip_filepath = self._zip_files(self.output_filepath, shp_files)
         return zip_filepath
 
 

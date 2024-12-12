@@ -129,7 +129,8 @@ def geographic_files_eq(
     :rtype: bool
     """
     with fiona.open(file_path_1) as file_1, fiona.open(file_path_2) as file_2:
-        return fiona_collections_eq(file_1, file_2, threshold)
+        val = fiona_collections_eq(file_1, file_2, threshold)
+        return val
 
 
 csv_rows_eq = ("csv", _get_csv_comparator(lambda a, b: a == b))
