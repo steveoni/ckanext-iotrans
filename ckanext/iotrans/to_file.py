@@ -205,6 +205,8 @@ class NonSpatialHandler(ToFileHandler):
                 xml_row = ET.Element("ROW", count=str(i))
                 for key, value in csv_row.items():
                     keyname = re.sub(r"[^a-zA-Z0-9-_]", "", key)
+                    if not (keyname[0].isalpha() or keyname[0] == "_"):
+                        keyname = f"_{keyname}"
                     ET.SubElement(xml_row, keyname).text = str(value)
                 chunk.append(ET.tostring(xml_row, encoding="unicode"))
 
