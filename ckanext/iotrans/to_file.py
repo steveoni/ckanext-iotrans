@@ -192,7 +192,7 @@ class NonSpatialHandler(ToFileHandler):
 
         with open(self.output_filepath, "w", encoding=XML_ENCODING) as xml_file:
 
-            xml_file.write(f"<?xml version='1.0' encoding='{XML_ENCODING}'?>\n")
+            xml_file.write(f'<?xml version="1.0" encoding="{XML_ENCODING}"?>\n')
             xml_file.write(f"<{root_tag}>")
             i = 0
 

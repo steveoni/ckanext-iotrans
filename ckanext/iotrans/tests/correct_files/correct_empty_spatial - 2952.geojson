@@ -3,7 +3,6 @@
 "name": "test_fixture_resource - 2952",
 "crs": { "type": "name", "properties": { "name": "urn:ogc:def:crs:EPSG::2952" } },
 "features": [
-{ "type": "Feature", "properties": { "_id": 1, "the year": 2014 }, "geometry": { "type": "MultiPoint", "coordinates": [ [ 0.0, 0.0 ] ] } },
-{ "type": "Feature", "properties": { "_id": 2, "the year": 2012 }, "geometry": { "type": "MultiPoint", "coordinates": [ ] } }
+{ "type": "Feature", "properties": { "_id": 1, "the year": 2014 }, "geometry": { "type": "MultiPoint", "coordinates": [ [ 15861826.462711825966835, -1.326945547091193 ] ] } }
 ]
 }

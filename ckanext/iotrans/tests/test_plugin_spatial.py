@@ -355,12 +355,19 @@ class TestIOTransSpatial(object):
                     "the year": 2014,
                     "geometry": json.dumps({"type": "Point", "coordinates": [0, 0]}),
                 },
-                {
-                    "the year": 2012,
-                    "geometry": json.dumps(
-                        {"type": "Point", "coordinates": [None, None]}
-                    ),
-                },
+                # TODO: coordinates of `None`/NULL is not valid geojson. Do we actually
+                # see this condition in practice?
+                # If so, is an empty multi-geom an accurate translation or should we
+                # - fail-fast?
+                # - set "geometry": null
+                # - skip the row and raise a warning?
+                # etc...
+                # {
+                #     "the year": 2012,
+                #     "geometry": json.dumps(
+                #         {"type": "Point", "coordinates": [None, None]}
+                #     ),
+                # },
             ],
         }
         result = helpers.call_action("datastore_create", **data)
