@@ -1,16 +1,16 @@
-import fiona
-import json
-import os
-from typing import Tuple, Callable
 import csv
 import filecmp
+import json
+import os
+from typing import Callable, Tuple
+
+import fiona
 from fiona import Collection, Geometry
 
 
 def _get_csv_comparator(
     compare_row: Callable, ignore_header=True
 ) -> Callable[[str, str], bool]:
-
     def _compare_fn(csv_path_1: str, csv_path_2: str) -> bool:
         with open(csv_path_1, "r") as csv_1_file:
             csv_1 = csv.reader(csv_1_file)

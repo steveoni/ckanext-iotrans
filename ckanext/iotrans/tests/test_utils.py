@@ -2,17 +2,19 @@
 Test module for various iotrans functions
 """
 
-from .utils import CORRECT_DIR_PATH, TEST_TMP_PATH
-
-import ckanext.iotrans.utils as utils
+import csv
 import filecmp
 import json
 import os
-import pytest
-import csv
 
+import pytest
+
+import ckanext.iotrans.utils as utils
+
+from .utils import CORRECT_DIR_PATH, TEST_TMP_PATH
 
 # Define fixtures
+
 
 @pytest.fixture
 def test_dump_json_filepath():
@@ -25,11 +27,13 @@ def test_dump_json_filepath():
         os.remove(filepath)
 
     # create test file
-    with open(os.path.join(CORRECT_DIR_PATH, "correct_datastore_resource.json")) as jsonfile:
+    with open(
+        os.path.join(CORRECT_DIR_PATH, "correct_datastore_resource.json")
+    ) as jsonfile:
         correct_datastore_resource = json.load(jsonfile)
-        utils.write_to_json(correct_dump_csv_filepath,
-                            filepath,
-                            correct_datastore_resource)
+        utils.write_to_json(
+            correct_dump_csv_filepath, filepath, correct_datastore_resource
+        )
 
     # return location of test file
     return filepath
@@ -54,7 +58,9 @@ def test_dump_xml_filepath():
 
 @pytest.fixture
 def correct_geospatial_generator():
-    correct_spatial_dump_csv_filepath = os.path.join(CORRECT_DIR_PATH, "correct_geo_dump.csv")
+    correct_spatial_dump_csv_filepath = os.path.join(
+        CORRECT_DIR_PATH, "correct_geo_dump.csv"
+    )
     correct_spatial_csv_dump_fieldnames = [
         "service_system_manager",
         "agency",
@@ -78,17 +84,16 @@ def correct_geospatial_generator():
         correct_spatial_csv_dump_fieldnames,
         "geojson",
         4326,
-        2952
+        2952,
     )
 
 
 def test_create_filepath_with_epsg():
     """test case for utils.create_filepath with an input epsg"""
     correct_filepath_with_epsg = os.path.join(TEST_TMP_PATH, "resource_name - 4326.csv")
-    test_filepath_with_epsg = utils.create_filepath(TEST_TMP_PATH,
-                                                    "resource_name",
-                                                    4326,
-                                                    "csv")
+    test_filepath_with_epsg = utils.create_filepath(
+        TEST_TMP_PATH, "resource_name", 4326, "csv"
+    )
 
     assert correct_filepath_with_epsg == test_filepath_with_epsg
 
@@ -96,8 +101,9 @@ def test_create_filepath_with_epsg():
 def test_create_filepath_without_epsg():
     """test case for utils.create_filepath without an input epsg"""
     correct_filepath_without_epsg = os.path.join(TEST_TMP_PATH, "resource_name.csv")
-    test_filepath_no_epsg = utils.create_filepath(TEST_TMP_PATH,
-                                                  "resource_name", None, "csv")
+    test_filepath_no_epsg = utils.create_filepath(
+        TEST_TMP_PATH, "resource_name", None, "csv"
+    )
 
     assert correct_filepath_without_epsg == test_filepath_no_epsg
 
@@ -114,14 +120,12 @@ def test_dump_to_geospatial_generator(correct_geospatial_generator):
     for item in correct_geospatial_generator:
         assert isinstance(item["properties"], dict)
         assert len(item["properties"])
-        assert all(x in item['geometry'] for x in ('coordinates', 'type'))
+        assert all(x in item["geometry"] for x in ("coordinates", "type"))
         assert len(item["geometry"])
 
 
-_valid_geometry = json.dumps({
-  "type": "Point",
-  "coordinates": [-122.4194, 37.7749]
-})
+_valid_geometry = json.dumps({"type": "Point", "coordinates": [-122.4194, 37.7749]})
+
 
 @pytest.mark.parametrize(
     "csv_data",
@@ -136,7 +140,7 @@ _valid_geometry = json.dumps({
             {"_id": 1, "the year": "2024", "geometry": _valid_geometry},
             {"_id": 2, "the year": "1970", "geometry": "None"},
             {"_id": 3, "the year": "2025", "geometry": _valid_geometry},
-        ]
+        ],
     ),
 )
 def test_transform_dump_epsg(tmp_path_factory, csv_data):

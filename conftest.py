@@ -1,9 +1,10 @@
-import pytest
 from typing import Dict, Generator
 
 import ckan.tests.factories as factories
 import ckan.tests.helpers as helpers
+import pytest
 from ckan.model import Session, User
+
 
 @pytest.fixture(scope="session")
 def sysadmin() -> Generator[Dict, None, None]:
@@ -39,7 +40,7 @@ def package(sysadmin: Dict) -> Generator[Dict, None, None]:
 # @pytest.fixture(scope="session")
 @pytest.fixture
 def resource(sysadmin, package):
-    context = {"user":sysadmin["name"]}
+    context = {"user": sysadmin["name"]}
     data = {
         "package_id": package["id"],
         "name": "test_fixture_resource",
