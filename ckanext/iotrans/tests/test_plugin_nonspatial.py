@@ -1,12 +1,12 @@
-"""Tests for ckanext-iotrans to run nonspatial functions 
+"""Tests for ckanext-iotrans to run nonspatial functions
 in context of a CKAN instance"""
 
-import pytest
 import os
 
 import ckan.tests.helpers as helpers
-from .utils import csv_rows_eq, json_small, xml_eq, CORRECT_DIR_PATH
+import pytest
 
+from .utils import CORRECT_DIR_PATH, csv_rows_eq, json_small, xml_eq
 
 target_formats = [
     "csv",
@@ -17,7 +17,6 @@ target_formats = [
 
 @pytest.mark.usefixtures("with_request_context")
 class TestIOTransNonSpatial(object):
-
     @pytest.mark.ckan_config("ckan.plugins", "datastore iotrans")
     @pytest.mark.usefixtures("with_plugins")
     @pytest.mark.parametrize(

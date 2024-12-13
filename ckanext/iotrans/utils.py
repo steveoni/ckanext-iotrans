@@ -1,23 +1,22 @@
 """Utils functions for iotrans.py
 """
 
+import codecs
+import csv
+import json
 import os
 import re
 import sys
-import csv
-import json
-import codecs
-from fiona.crs import from_epsg
-from fiona.transform import transform_geom
-from zipfile import ZipFile
 import xml.etree.cElementTree as ET
-from fiona import Geometry
-from typing import Dict, Any
-from typing import Generator
-from .to_file import EPSG, geometry_to_json
-
+from typing import Any, Dict, Generator
+from zipfile import ZipFile
 
 import ckan.plugins.toolkit as tk
+from fiona import Geometry
+from fiona.crs import from_epsg
+from fiona.transform import transform_geom
+
+from .to_file import EPSG, geometry_to_json
 
 
 def is_falsey(arg: Any) -> bool:

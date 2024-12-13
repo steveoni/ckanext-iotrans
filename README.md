@@ -33,7 +33,7 @@ ckanext-iotrans creates the following CKAN actions - both will only work for adm
 
 - **target_epsgs**: list of desired EPSGs of output files, if data is spatial, as integers
 
-- **target_formats**: list of desired file formats as strings. ex: `["csv", "xml", "json"]` 
+- **target_formats**: list of desired file formats as strings. ex: `["csv", "xml", "json"]`
 
 | Spatial Formats | Non Spatial Formats   |
 | --------------- | ------------- |
@@ -54,7 +54,7 @@ Writes desired files to folder in /tmp, and returns a list of filepaths where th
 
 #### Outputs:
 
-Removes file or directory, as long as its in `/tmp` directory 
+Removes file or directory, as long as its in `/tmp` directory
 
 
 ## Details
@@ -70,12 +70,12 @@ Processing to convert files to another format, or transform coordinates from one
 `ckanext-iotrans` identifies spatial dataas anything containing a `geometry` attribute. A `geometry` attribute's value should be structured as follows:
 
 ```json
-    "type": "Some Geometry Type", 
+    "type": "Some Geometry Type",
     "coordinates": [X Coordinate, Y Coordinate]
 ```
 So, for example:
 ```json
-    "type": "Point", 
+    "type": "Point",
     "coordinates": [-79.156501959987, 43.232603612123]
 ```
 

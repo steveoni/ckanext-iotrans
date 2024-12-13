@@ -1,20 +1,19 @@
-from abc import ABC
-from typing import Callable, Generator
-from typing import Dict, Literal, List
-from zipfile import ZipFile
 import csv
 import json
 import os
 import re
+import shutil
 import sys
 import xml.etree.cElementTree as ET
-from typing import TypedDict, Optional
-from fiona.crs import from_epsg
+from abc import ABC
 from contextlib import contextmanager
-from pydantic import BaseModel
+from typing import Callable, Dict, Generator, List, Literal, Optional, TypedDict
+from zipfile import ZipFile
+
 import fiona
 import fiona.transform
-import shutil
+from fiona.crs import from_epsg
+from pydantic import BaseModel
 
 #####################
 # Types             #
@@ -96,7 +95,6 @@ def geometry_to_json(geom: fiona.Geometry) -> str:
 
 
 class ToFileHandler(ABC):
-
     def name(self) -> str:
         """name
 
@@ -112,7 +110,6 @@ class ToFileHandler(ABC):
 
 
 class NonSpatialHandler(ToFileHandler):
-
     def __init__(
         self,
         target_format: NON_SPATIAL_TARGET_FORMAT,
@@ -311,7 +308,6 @@ class SpatialHandler(ToFileHandler, ABC):
 
 
 class SpatialToCsv(SpatialHandler):
-
     def __init__(
         self,
         source_epsg: EPSG,
@@ -443,7 +439,6 @@ class SpatialToSpatial(SpatialHandler):
 
 
 class SpatialToShp(SpatialToSpatial):
-
     def __init__(
         self,
         source_epsg: EPSG,

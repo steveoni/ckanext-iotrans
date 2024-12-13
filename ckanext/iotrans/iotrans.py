@@ -2,31 +2,30 @@
 These function are the top level logic for this extension's CKAN actions
 """
 
-import ckan.plugins.toolkit as tk
-from ckan.common import config
 import csv
-
-import tempfile
-import shutil
-import os
 import json
-import fiona
 import logging
-from fiona.crs import from_epsg
-from . import utils
+import os
+import shutil
+import tempfile
 from datetime import datetime
+from typing import Any, Dict, List, Literal, Optional, Tuple, TypedDict
+
+import ckan.plugins.toolkit as tk
+import fiona
+from ckan.common import config
+from fiona.crs import from_epsg
 from memory_profiler import memory_usage, profile
-from .to_file import (
-    ToFileParamsSpatial,
-    ToFileParamsNonSpatial,
-    spatial_to_file_factory,
-    non_spatial_to_file_factory,
-    DatastoreResourceMetadata,
-)
 from pydantic import BaseModel, ValidationError
 
-from typing import Dict, Any, Literal, List, Tuple, Optional
-from typing import TypedDict
+from . import utils
+from .to_file import (
+    DatastoreResourceMetadata,
+    ToFileParamsNonSpatial,
+    ToFileParamsSpatial,
+    non_spatial_to_file_factory,
+    spatial_to_file_factory,
+)
 
 
 @tk.side_effect_free
@@ -475,7 +474,6 @@ def to_file_profile_testing(context, data_dict):
                                     driver=drivers[target_format],
                                     crs=from_epsg(target_epsg),
                                 ) as outlayer:
-                                    breakpoint()
                                     print(f"shp to {dump_filepath}")
                                     outlayer.writerecords(
                                         utils.dump_to_geospatial_generator(
@@ -538,7 +536,6 @@ def to_file_profile_testing(context, data_dict):
                                     driver=drivers[target_format],
                                     crs=from_epsg(target_epsg),
                                 ) as outlayer:
-                                    breakpoint()
                                     outlayer.writerecords(
                                         utils.dump_to_geospatial_generator(
                                             dump_filepath,

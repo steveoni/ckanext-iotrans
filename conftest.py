@@ -1,8 +1,8 @@
-import pytest
 from typing import Dict, Generator
 
 import ckan.tests.factories as factories
 import ckan.tests.helpers as helpers
+import pytest
 from ckan.model import Session, User
 
 

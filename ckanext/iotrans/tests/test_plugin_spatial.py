@@ -1,20 +1,22 @@
 """Tests for ckanext-iotrans to run spatial functions
 in context of a CKAN instance"""
 
+import filecmp
 import json
-import pytest
-import fiona
-import zipfile
 import os
+import zipfile
+
 import ckan.tests.helpers as helpers
+import fiona
+import pytest
+
 from .utils import (
     CORRECT_DIR_PATH,
     csv_rows_eq,
-    geojson_small,
     fiona_collections_eq,
     geographic_files_eq,
+    geojson_small,
 )
-import filecmp
 
 target_formats = ["csv", "geojson"]
 # target_formats = ["geojson"]

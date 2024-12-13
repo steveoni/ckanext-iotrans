@@ -8,24 +8,20 @@ writing it is the most ergonomic way to:
 - cleanup any temporarily created resources
 """
 
-import pytest
-import ckan.tests.helpers as helpers
-import requests
-from memory_profiler import memory_usage, profile
-
-from pathlib import Path
-import csv
-
-from werkzeug.datastructures import FileStorage
-
-from typing import Generator, List
-import yaml
-
 import csv
 import json
+import os
 import random
 from datetime import datetime, timedelta
-import os
+from pathlib import Path
+from typing import Generator, List
+
+import ckan.tests.helpers as helpers
+import pytest
+import requests
+import yaml
+from memory_profiler import memory_usage, profile
+from werkzeug.datastructures import FileStorage
 
 
 @pytest.fixture(scope="session")
@@ -215,7 +211,6 @@ def test_profile_to_file(target_format, sysadmin, large_resource):
 
         to_file_wrapper()
         # mem, val = memory_usage((to_file_wrapper, (), {}), retval=True)
-        breakpoint()
     # TODO: some assertion about anticipated memory consumption
 
 
@@ -246,5 +241,4 @@ def test_profile_to_file_by_resource_id(sysadmin):
 
         to_file_wrapper()
         # mem, val = memory_usage((to_file_wrapper, (), {}), retval=True)
-        breakpoint()
     # TODO: some assertion about anticipated memory consumption

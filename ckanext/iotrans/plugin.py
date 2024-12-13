@@ -1,6 +1,6 @@
 import ckan.plugins as plugins
-from . import utils
-from . import iotrans
+
+from . import iotrans, utils
 
 
 class IotransPlugin(plugins.SingletonPlugin):

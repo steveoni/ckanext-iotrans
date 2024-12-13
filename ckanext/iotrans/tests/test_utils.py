@@ -2,15 +2,16 @@
 Test module for various iotrans functions
 """
 
-from .utils import CORRECT_DIR_PATH, TEST_TMP_PATH
-
-import ckanext.iotrans.utils as utils
+import csv
 import filecmp
 import json
 import os
-import pytest
-import csv
 
+import pytest
+
+import ckanext.iotrans.utils as utils
+
+from .utils import CORRECT_DIR_PATH, TEST_TMP_PATH
 
 # Define fixtures
 
