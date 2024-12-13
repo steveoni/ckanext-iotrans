@@ -12,7 +12,6 @@ from typing import Any, Dict, Generator
 from zipfile import ZipFile
 
 import ckan.plugins.toolkit as tk
-from fiona import Geometry
 from fiona.crs import from_epsg
 from fiona.transform import transform_geom
 
@@ -150,7 +149,7 @@ def dump_to_geospatial_generator(
                 "geometry": geometry,
             }
 
-            yield (output)
+            yield output
 
 
 def transform_dump_epsg(dump_filepath, fieldnames, source_epsg, target_epsg):

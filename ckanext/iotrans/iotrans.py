@@ -2,21 +2,18 @@
 These function are the top level logic for this extension's CKAN actions
 """
 
-import csv
 import json
 import logging
 import os
-import shutil
 import tempfile
 from datetime import datetime
-from typing import Any, Dict, List, Literal, Optional, Tuple, TypedDict
 
 import ckan.plugins.toolkit as tk
 import fiona
 from ckan.common import config
 from fiona.crs import from_epsg
-from memory_profiler import memory_usage, profile
-from pydantic import BaseModel, ValidationError
+from memory_profiler import profile
+from pydantic import ValidationError
 
 from . import utils
 from .to_file import (
