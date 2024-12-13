@@ -33,7 +33,7 @@ ckanext-iotrans creates the following CKAN actions - both will only work for adm
 
 - **target_epsgs**: list of desired EPSGs of output files, if data is spatial, as integers
 
-- **target_formats**: list of desired file formats as strings. ex: `["csv", "xml", "json"]` 
+- **target_formats**: list of desired file formats as strings. ex: `["csv", "xml", "json"]`
 
 | Spatial Formats | Non Spatial Formats   |
 | --------------- | ------------- |
@@ -54,7 +54,7 @@ Writes desired files to folder in /tmp, and returns a list of filepaths where th
 
 #### Outputs:
 
-Removes file or directory, as long as its in `/tmp` directory 
+Removes file or directory, as long as its in `/tmp` directory
 
 
 ## Details
@@ -70,12 +70,12 @@ Processing to convert files to another format, or transform coordinates from one
 `ckanext-iotrans` identifies spatial dataas anything containing a `geometry` attribute. A `geometry` attribute's value should be structured as follows:
 
 ```json
-    "type": "Some Geometry Type", 
+    "type": "Some Geometry Type",
     "coordinates": [X Coordinate, Y Coordinate]
 ```
 So, for example:
 ```json
-    "type": "Point", 
+    "type": "Point",
     "coordinates": [-79.156501959987, 43.232603612123]
 ```
 
@@ -108,3 +108,20 @@ For example:
 ## Contribution
 
 Please contact opendata@toronto.ca
+
+### `pre-commit`
+This repository uses [pre-commit](https://pre-commit.com/).
+
+To set up:
+```bash
+# Install pre-commit
+pip install -r dev-requirements.txt
+pre-commit install
+```
+Usage:
+- after you've installed pre-commit, the next time you `git commit` the list of installed pre-commit hooks (defined in `.pre-commit.yaml`) will run to auto-format files and check for other things.
+- A log of hooks that succeeded and failed will be printed
+- Normally a few will 'fail' which typically just means some rules of the hook were broken (e.g. a file in the diff had trailing whitepace)
+- Most often, the hooks defined for this repo will automatically fix these issues: running `git status` should then show some newly-unstaged changes which resulted from the pre-commit hooks modifying files (eg. autoformatting)
+- if an issue can't be automatically fixed by the installed hooks then you may need to fix it yourself before a commit is excepted
+- pre-commit hooks can be bypassed with the `-n` flag: `git commit -n -m "some commit message"`. This should generally be avoided if possible (if a rule truly should be ignored consider using linting ingore comments, eg `# noqa:<flake8_rule_id>
