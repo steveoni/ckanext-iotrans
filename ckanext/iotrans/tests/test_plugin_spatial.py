@@ -13,7 +13,6 @@ import pytest
 from .utils import CORRECT_DIR_PATH, fiona_collections_eq, geographic_files_eq
 
 target_formats = ["csv", "geojson"]
-# target_formats = ["geojson"]
 
 
 @pytest.mark.usefixtures("with_request_context")
