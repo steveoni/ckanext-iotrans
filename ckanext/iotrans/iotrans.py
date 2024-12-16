@@ -6,13 +6,9 @@ import json
 import logging
 import os
 import tempfile
-from datetime import datetime
 
 import ckan.plugins.toolkit as tk
-import fiona
 from ckan.common import config
-from fiona.crs import from_epsg
-from memory_profiler import profile
 from pydantic import ValidationError
 
 from . import utils
