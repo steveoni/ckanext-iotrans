@@ -6,6 +6,7 @@ import json
 import logging
 import os
 import tempfile
+from typing import Callable, List
 
 import ckan.plugins.toolkit as tk
 from ckan.common import config
@@ -14,6 +15,7 @@ from pydantic import ValidationError
 from . import utils
 from .to_file import (
     DatastoreResourceMetadata,
+    ToFileHandler,
     ToFileParamsNonSpatial,
     ToFileParamsSpatial,
     non_spatial_to_file_factory,
@@ -104,22 +106,21 @@ def to_file(context, data_dict):
         "name": resource_metadata["name"],
     }
 
-    # Depending on whether spatial or not, we need a factory method that will generate
-    # all the output handlers. These factory methods should be the same shape (params +
-    # return types)
-    handler_factory = (
+    # Depending on whether spatial or not, select a factory method that will generate
+    # all the output 'handlers'. 1 'handler' = 1 output file. Both handlers and handler
+    # factories should have the same type signatures respectively
+    handler_factory: Callable = (
         spatial_to_file_factory if is_spatial else non_spatial_to_file_factory
     )
     out_dir = os.path.join(temp_dir, "output")
     os.makedirs(out_dir)
-    handlers = handler_factory(
+    handlers: List[ToFileHandler] = handler_factory(
         params=data,
         out_dir=out_dir,
         datastore_metadata=datastore_metadata,
     )
 
-    # Iterate through handlers produced by the factory for each we run to_file
-    # (1 'handler' = 1 output file)
+    # Iterate through handlers produced by the factory. For each we run to_file
     output = {}
     for handler in handlers:
         with open(dump_filepath, "r") as csv_file:

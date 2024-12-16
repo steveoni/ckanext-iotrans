@@ -1,3 +1,57 @@
+"""
+to_file.py
+Contains main algorithms for the to_file CKAN Action.
+
+# Overview:
+## the CKAN action function itself (not this module) performs:
+    - input validation
+    - calls ckan actions
+    - formatting of responses back to end-users (e.g. validation errors, json etc.)
+    - (effectively anything CKAN specific so _this_ module doesn't need to have any
+      dependency on CKAN apis)
+## This module:
+- types and utils
+- a class structure defining a Template Method pattern for handling to_file for
+    2 dimensions:
+    - spatial vs. non-spatial
+    - target format
+    - see here for detail on Template Method pattern:
+      https://refactoring.guru/design-patterns/template-method
+- Factory methods to produce concrete instances of the implemented Template classes
+https://refactoring.guru/design-patterns/creational-patterns
+    - in other words: functions that return lists of objects that implement to_file
+      individually for their respective spatial/non-spatial, source_format, and
+      target_format combinations.
+
+# Class Structure:
+- the `to_file` action returns `Dict[str, str]`. There are 2 outputs here per cached
+  file produced (the key and the value)
+  - the key: something like `shp-2952` -> some identifier that includes what file type
+    and, if spatial, what projection.
+  - the value: the filepath on disk where the cached file lives.
+- For each spatial/non-spatial, source format, and target format, combination we need
+  to generate these 2 outputs.
+- This is formalized in the ToFileHandler abstract class which requires `name` (key) and
+  `to_file` functions be defined.
+    - So a new handler type can only be added if it implements this ABC and defines name
+      and `to_file` functions
+
+## Non-Spatial
+(implementation here is fairly self-evident in NonSpatialHandler)
+
+## Spatial
+There is a basic structure that is common to all to_file algorithims, regardless of
+format, source epsg, target epsg.
+
+To limit repeat code, we use a Template Method. The template method is defined in
+`SpatialHandler.to_file`:
+
+Sub-classes of `SpatialHandler` do not override `to_file` and instead are expected to
+implement hooks or defaults that are called by `SpatialHandler.to_file` (ie. the things
+that do differ between epsg/format).
+
+"""
+
 import csv
 import json
 import os
