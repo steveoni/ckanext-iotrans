@@ -42,17 +42,19 @@ def to_file(context, data_dict):
     is_spatial = True
     try:
         data = ToFileParamsSpatial(**data_dict)
-    except ValidationError as spatial_valid_error:
+    except ValidationError as spatial_error:
         try:
             data = ToFileParamsNonSpatial(**data_dict)
             is_spatial = False
-        except ValidationError as non_spatial_valid_error:
+        except ValidationError as non_spatial_error:
             raise tk.ValidationError(
                 {
-                    # TODO: concat non_spatial_valid_error and spatial_valid_error
-                    "constraints": ["invalid params for both spatial and non-spatial"]
+                    "constraints": [
+                        f"Could not parse spatial-type params: {spatial_error}",
+                        f"Could not parse non-spatial-type params: {non_spatial_error}",
+                    ]
                 }
-            ) from spatial_valid_error
+            ) from spatial_error
 
     # Make sure the resource id provided is for a datastore resource
     resource_metadata = tk.get_action("resource_show")(
