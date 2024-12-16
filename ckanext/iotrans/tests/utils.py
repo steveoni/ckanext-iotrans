@@ -135,7 +135,6 @@ def geographic_files_eq(
 
 csv_rows_eq = ("csv", _get_csv_comparator(lambda a, b: a == b))
 json_small = ("json", _compare_json_small)
-geojson_small = ("geojson", _compare_json_small)
 xml_eq = ("xml", filecmp.cmp)
 
 CORRECT_DIR_PATH = os.path.join(

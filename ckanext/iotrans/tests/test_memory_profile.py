@@ -18,9 +18,7 @@ from typing import Generator, List
 
 import ckan.tests.helpers as helpers
 import pytest
-import requests
-import yaml
-from memory_profiler import memory_usage, profile
+from memory_profiler import profile
 from werkzeug.datastructures import FileStorage
 
 
@@ -74,39 +72,6 @@ def large_geospatial_csv() -> None:
     return csv_file_name, fields
 
 
-@pytest.fixture(scope="session")
-def large_csv(tmp_path_factory):
-
-    # TODO at some point this link to a prod csv resource should be replaced with a
-    # more appropriate static file
-    tmp_path = tmp_path_factory.mktemp("iotrans") / "solarto.csv"
-    response = requests.get(
-        (
-            "https://ckan0.cf.opendata.inter.prod-toronto.ca/dataset/solarto/resource"
-            "/6b49daae-8797-4153-b106-ccc404ec95b3/download/solarto-map%20-%204326.csv"
-        ),
-        timeout=20,
-    )
-    response.raise_for_status()
-
-    with open(tmp_path, "wb") as file:
-        file.write(response.content)
-
-    response = requests.get(
-        (
-            "https://raw.githubusercontent.com/open-data-toronto/operations/"
-            "cce693edcc79a15b0bf70549217ac5d02b8bedef/dags/datasets/files_to_datastore/"
-            "solarto.yaml"
-        ),
-        timeout=20,
-    )
-    response.raise_for_status()
-    parsed_yaml = yaml.safe_load(response.content)
-    solarto_fields = parsed_yaml["solarto"]["resources"]["solarto-map"]["attributes"]
-
-    return tmp_path, solarto_fields
-
-
 def chunk_csv(file_name: Path, row_chunk_size: int) -> Generator[List, None, None]:
     # set to some smaller number to run on a subset of chunks if we don't want to wait
     # for the full resource to be created
@@ -149,7 +114,7 @@ def large_resource(sysadmin, package, large_geospatial_csv):
             stream=open(large_csv_path, "rb"), filename=large_csv_path.name
         ),
     )
-    datastore_record = helpers.call_action(
+    helpers.call_action(
         "datastore_create",
         context=context,
         resource_id=resource["id"],
@@ -221,7 +186,7 @@ from datetime import datetime
 @pytest.mark.skip
 def test_profile_to_file_by_resource_id(sysadmin):
     context = {"user": sysadmin["name"]}
-    solar_to = "a9153284-9b60-43c3-a8a5-31c65b9f38a7"
+    # solar_to = "a9153284-9b60-43c3-a8a5-31c65b9f38a7"
     # select id, name from resource where package_id in (select id from package where name='tps-police-divisions');
     tps_boundaries = "627c9199-050f-4380-83ec-b3017e0a34b7"
 

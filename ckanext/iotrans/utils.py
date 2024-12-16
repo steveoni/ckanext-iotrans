@@ -22,56 +22,6 @@ def is_falsey(arg: Any) -> bool:
     return arg in ["false", "False", False]
 
 
-def transform_epsg(source_epsg, target_epsg, geometry):
-    """standardize processing when transforming epsg"""
-
-    # if input is empty, return it as is
-    if geometry in [None, "None"]:
-        return None
-
-    # if input is a string, make it a json object
-    if isinstance(geometry, str):
-        geometry = json.loads(geometry.replace("'", '"'))  # replace '' with ""
-        assert "coordinates" in geometry.keys(), "No coordinates in geometry!"
-
-    original_geometry_type = geometry["type"]
-    if not geometry["type"].startswith("Multi"):
-        geometry["type"] = "Multi" + geometry["type"]
-
-    # 0,0 coords need not be transformed - only their brackets changed
-    if geometry["coordinates"] in [[0, 0], [[0, 0]]]:
-        geometry["coordinates"] = [[0, 0]]
-        return geometry
-
-    # null coords need not be transformed - only their brackets changed
-    if geometry["coordinates"] in [[None, None], [[None, None]]]:
-        geometry["coordinates"] = []
-        return geometry
-
-    # force to multigeometry
-    coordinates = list(geometry.get("coordinates", None))
-    if not original_geometry_type.startswith("Multi"):
-        coordinates = list([list(coord) for coord in [coordinates]])
-    geometry["coordinates"] = coordinates
-
-    # if the source and target epsg dont match, consider transforming them
-    if target_epsg != source_epsg:
-        geometry = transform_geom(
-            from_epsg(source_epsg),
-            from_epsg(target_epsg),
-            geometry,
-        )
-
-        # conversion can change round brackets to square brackets
-        # this converts to round brackets to keep CSVs consistent
-        if geometry["type"].startswith("Multi"):
-            geometry["coordinates"] = json.loads(
-                json.dumps(geometry["coordinates"]).replace("(", "[").replace(")", "]")
-            )
-
-    return geometry
-
-
 def dump_generator(resource_id, fieldnames, context):
     """reads a CKAN datastore_search calls, returns a python generator"""
     # init some vars
@@ -99,78 +49,6 @@ def dump_generator(resource_id, fieldnames, context):
             break
 
 
-def transform_epsg_generator(
-    generator: Generator[Dict, None, None],
-    source_epsg: EPSG,
-    target_epsg: EPSG,
-    geometry_column: str,
-    jsonify: bool,
-) -> Generator[Dict, None, None]:
-    for row in generator:
-        geometry = transform_epsg(source_epsg, target_epsg, row.get(geometry_column))
-        if jsonify:
-            geometry = geometry_to_json(geometry)
-        yield {
-            "type": "Feature",
-            "properties": dict(row),
-            "geometry": geometry,
-        }
-
-
-def dump_to_geospatial_generator(
-    dump_filepath, fieldnames, target_format, source_epsg, target_epsg, col_map=None
-):
-    """reads a CKAN CSV dump, creates generator with converted CRS"""
-    # TODO DRY: should be consolidated w/ dump_to_geospatial_generator
-
-    # For each row in the dump ...
-    with codecs.open(dump_filepath, "r", encoding="utf-8") as f:
-        reader = csv.DictReader(f, fieldnames=fieldnames)
-        next(reader)
-        for row in reader:
-
-            # if the data contains a "geometry" column, we know its spatial
-            geometry = row.pop("geometry")
-
-            # if geometry not in ["None", None]:
-            # shapefile column names need to be mapped from col_map
-            if target_format == "shp":
-                working_row = {}
-                for key, value in row.items():
-                    working_row[col_map[key]] = value
-                row = working_row
-
-            # if we need to transform the EPSG, we do it here
-            geometry = transform_epsg(source_epsg, target_epsg, geometry)
-
-            output = {
-                "type": "Feature",
-                "properties": dict(row),
-                "geometry": geometry,
-            }
-
-            yield output
-
-
-def transform_dump_epsg(dump_filepath, fieldnames, source_epsg, target_epsg):
-    """generator yields dump rows with epsg reformatted/converted"""
-    # TODO DRY: should be consolidated w/ dump_to_geospatial_generator
-
-    # Open the dump CSV into a dictreader
-    with codecs.open(dump_filepath, "r", encoding="utf-8") as f:
-        dictreader = csv.DictReader(f, fieldnames=fieldnames)
-        next(dictreader)
-
-        # For each fow, convert the CRS
-        for row in dictreader:
-
-            geometry = transform_epsg(source_epsg, target_epsg, row["geometry"])
-            row["geometry"] = (
-                geometry_to_json(geometry) if geometry is not None else None
-            )
-            yield (row)
-
-
 def get_filepath(dir_path, resource_name, epsg, file_format):
     """Gets a filepath using input resource name, and desired format/epsg"""
 
@@ -178,54 +56,6 @@ def get_filepath(dir_path, resource_name, epsg, file_format):
     return os.path.join(
         dir_path, "{0}{1}.{2}".format(resource_name, epsg_suffix, file_format.lower())
     )
-
-
-def append_to_output(output, target_format, target_epsg, output_filepath):
-    """Sorts created file filepath into dict output of to_file()"""
-
-    output[str(target_format) + "-" + str(target_epsg)] = output_filepath
-
-    return output
-
-
-def write_to_csv(dump_filepath, fieldnames, rows_generator):
-    """Streams a dump into a CSV file"""
-    csv.field_size_limit(sys.maxsize)
-
-    with codecs.open(dump_filepath, "w", encoding="utf-8") as f:
-        writer = csv.DictWriter(f, fieldnames)
-        writer.writeheader()
-        writer.writerows(rows_generator)
-
-
-def write_to_zipped_shapefile(
-    fieldnames, dir_path, resource_metadata, output_filepath, col_map
-):
-    """Zips shp component files together with optional colname mapping csv"""
-
-    # put a mapping of full names to truncated names into a csv
-    file_name = f'{resource_metadata["name"]} fields.csv'
-    fields_filepath = os.path.join(dir_path, file_name)
-    with codecs.open(fields_filepath, "w", encoding="utf-8") as fields_file:
-        writer = csv.DictWriter(fields_file, fieldnames=["field", "name"])
-        writer.writeheader()
-        for fieldname in [
-            fieldname for fieldname in fieldnames if fieldname != "geometry"
-        ]:
-            writer.writerow({"field": col_map[fieldname], "name": fieldname})
-
-    # put shapefile components into a .zip
-    output_filepath = output_filepath.replace(".shp", ".zip")
-    with ZipFile(output_filepath, "w") as zipfile:
-        shp_components = ["shp", "cpg", "dbf", "prj", "shx"]
-
-        for file in os.listdir(dir_path):
-            if file[-3:] in shp_components or file == file_name:
-                file_path = os.path.join(dir_path, file)
-                zipfile.write(file_path, arcname=file)
-                os.remove(file_path)
-
-    return output_filepath
 
 
 def write_to_json(dump_filepath, output_filepath, datastore_resource, context):

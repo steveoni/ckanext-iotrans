@@ -10,13 +10,7 @@ import ckan.tests.helpers as helpers
 import fiona
 import pytest
 
-from .utils import (
-    CORRECT_DIR_PATH,
-    csv_rows_eq,
-    fiona_collections_eq,
-    geographic_files_eq,
-    geojson_small,
-)
+from .utils import CORRECT_DIR_PATH, fiona_collections_eq, geographic_files_eq
 
 target_formats = ["csv", "geojson"]
 # target_formats = ["geojson"]
