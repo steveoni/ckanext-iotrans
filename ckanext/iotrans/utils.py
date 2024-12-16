@@ -149,3 +149,13 @@ def iotrans_auth_function(context, data_dict=None):
             "success": False,
             "msg": "This endpoint is for authorized accounts only",
         }
+
+
+def write_to_jsonlines(dump_filepath: str, generator: Generator) -> None:
+    with open(dump_filepath, "w") as f:
+        f.writelines(f"{json.dumps(row)}\n" for row in generator)
+
+
+def json_lines_reader(file) -> Generator[Dict, None, None]:
+    for row in file:
+        yield json.loads(row)

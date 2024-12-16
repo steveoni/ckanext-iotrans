@@ -88,21 +88,12 @@ def to_file(context, data_dict):
         "jsonlines",
     )
     fieldnames = [field["id"] for field in datastore_resource["fields"]]
-
-    def write_to_jsonlines(dump_filepath, generator):
-        with open(dump_filepath, "w") as f:
-            f.writelines(f"{json.dumps(row)}\n" for row in generator)
-
-    def json_lines_reader(file):
-        for row in file:
-            yield json.loads(row)
-
     generator = utils.dump_generator(
         data.resource_id,
         fieldnames,
         context,
     )
-    write_to_jsonlines(dump_filepath, generator)
+    utils.write_to_jsonlines(dump_filepath, generator)
 
     geometry_type = (
         json.loads(datastore_resource["records"][0]["geometry"])["type"]
@@ -134,7 +125,7 @@ def to_file(context, data_dict):
     output = {}
     for handler in handlers:
         with open(dump_filepath, "r") as csv_file:
-            row_generator = json_lines_reader(csv_file)
+            row_generator = utils.json_lines_reader(csv_file)
             output[handler.name()] = handler.to_file(row_generator)
     return output
 
