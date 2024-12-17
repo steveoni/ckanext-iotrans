@@ -6,23 +6,17 @@ import csv
 import json
 import os
 import re
-import sys
 import xml.etree.cElementTree as ET
 from typing import Any, Dict, Generator
-from zipfile import ZipFile
 
 import ckan.plugins.toolkit as tk
-from fiona.crs import from_epsg
-from fiona.transform import transform_geom
-
-from .to_file import EPSG, geometry_to_json
 
 
 def is_falsey(arg: Any) -> bool:
     return arg in ["false", "False", False]
 
 
-def dump_generator(resource_id, fieldnames, context):
+def dump_generator(resource_id, context):
     """reads a CKAN datastore_search calls, returns a python generator"""
     # init some vars
     chunk = 20000

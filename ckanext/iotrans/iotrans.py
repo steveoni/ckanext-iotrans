@@ -87,12 +87,7 @@ def to_file(context, data_dict):
         data_dict.get("source_epsg", None),
         "jsonlines",
     )
-    fieldnames = [field["id"] for field in datastore_resource["fields"]]
-    generator = utils.dump_generator(
-        data.resource_id,
-        fieldnames,
-        context,
-    )
+    generator = utils.dump_generator(data.resource_id, context)
     utils.write_to_jsonlines(dump_filepath, generator)
 
     geometry_type = (

@@ -81,7 +81,6 @@ NON_SPATIAL_TARGET_FORMAT = Literal["csv", "json", "xml"]
 
 class ToFileParamsSpatial(BaseModel):
     resource_id: str
-    # TODO is this really a list of possible source targets? how do we know which is which?
     source_epsg: EPSG
     target_epsgs: List[EPSG]
     target_formats: List[SPATIAL_TARGET_FORMAT]
@@ -124,7 +123,7 @@ FIONA_DRIVERS = {
 }
 
 
-def geometry_to_json(geom: fiona.Geometry) -> str:
+def _geometry_to_json(geom: fiona.Geometry) -> str:
     """_geometry_to_json
 
     :param geom: the fiona geometry
@@ -380,7 +379,7 @@ class SpatialToCsv(SpatialHandler):
     ) -> Generator[Dict, None, None]:
         for row in row_generator:
             # JSON stringify geometry so it gets written correctly to csv
-            row["geometry"] = geometry_to_json(row["geometry"])
+            row["geometry"] = _geometry_to_json(row["geometry"])
             yield row
 
     def save_to_file(self, row_generator):
