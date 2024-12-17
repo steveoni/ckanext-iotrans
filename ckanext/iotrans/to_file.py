@@ -143,14 +143,13 @@ def _geometry_to_json(geom: fiona.Geometry) -> str:
 
 
 #####################
-# Classes           #
+# to_file hanlders  #
 #####################
 
 
 class ToFileHandler(ABC):
     def name(self) -> str:
         """name
-
         :raises NotImplementedError: abstract: this class does not implement
         :return: a string identifying this output (e.g. for the purpose of creating a
           mapping from str to outputpath in request responses)
@@ -159,6 +158,13 @@ class ToFileHandler(ABC):
         raise NotImplementedError()
 
     def to_file(self, row_generator: Generator[Dict, None, None]) -> str:
+        """to_file
+        :param row_generator: generator that yields a single entry/row at a time
+        :type row_generator: Generator[Dict, None, None]
+        :raises NotImplementedError: not implemented for abstract base class
+        :return: file path for where the produced cached file lives
+        :rtype: str
+        """
         raise NotImplementedError()
 
 
