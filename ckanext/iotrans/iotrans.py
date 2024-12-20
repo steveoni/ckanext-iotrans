@@ -12,8 +12,8 @@ import ckan.plugins.toolkit as tk
 from ckan.common import config
 from pydantic import ValidationError
 
-from . import utils
-from .to_file import (
+from .utils import generic, json_lines
+from .utils.to_file import (
     DatastoreResourceMetadata,
     ToFileHandler,
     ToFileParamsNonSpatial,
@@ -62,7 +62,7 @@ def to_file(context, data_dict):
     resource_metadata = tk.get_action("resource_show")(
         context, {"id": data.resource_id}
     )
-    if utils.is_falsey(resource_metadata.get("datastore_active", None)):
+    if generic.is_falsey(resource_metadata.get("datastore_active", None)):
         raise tk.ValidationError(
             {"constraints": [f"{data.resource_id} is not a datastore resource!"]}
         )
@@ -81,14 +81,14 @@ def to_file(context, data_dict):
     # 2. We need to re-use these data multiple times; we can at least limit db queries
     #    to a constant rathern than N times (where N is the number of outputs we target)
     temp_dir = tempfile.mkdtemp(dir=config.get("ckan.storage_path"))
-    dump_filepath = utils.get_filepath(
+    dump_filepath = generic.get_filepath(
         temp_dir,
         resource_metadata["name"],
         data_dict.get("source_epsg", None),
         "jsonlines",
     )
-    generator = utils.dump_generator(data.resource_id, context)
-    utils.write_to_jsonlines(dump_filepath, generator)
+    generator = generic.dump_generator(data.resource_id, context)
+    json_lines.write_to_jsonlines(dump_filepath, generator)
 
     geometry_type = (
         json.loads(datastore_resource["records"][0]["geometry"])["type"]
@@ -119,7 +119,7 @@ def to_file(context, data_dict):
     output = {}
     for handler in handlers:
         with open(dump_filepath, "r") as json_lines_file:
-            row_generator = utils.json_lines_reader(json_lines_file)
+            row_generator = json_lines.jsonlines_reader(json_lines_file)
             output[handler.name()] = handler.to_file(row_generator)
     return output
 

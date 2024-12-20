@@ -196,7 +196,7 @@ class NonSpatialHandler(ToFileHandler):
     def _to_csv(
         self,
         row_generator: Generator[Dict, None, None],
-    ) -> None:
+    ) -> str:
         with open(self.output_filepath, "w") as csv_file:
             writer = csv.DictWriter(
                 csv_file,
@@ -228,7 +228,7 @@ class NonSpatialHandler(ToFileHandler):
     def _to_json(
         self,
         row_generator: Generator[Dict, None, None],
-    ) -> None:
+    ) -> str:
         with open(self.output_filepath, "w") as json_file:
             # write starting bracket
             json_file.write("[")
@@ -241,7 +241,7 @@ class NonSpatialHandler(ToFileHandler):
     def _to_xml(
         self,
         row_generator: Generator[Dict, None, None],
-    ) -> None:
+    ) -> str:
         XML_ENCODING = "utf-8"
         root_tag = "DATA"
         chunk_size = 5000
@@ -319,7 +319,7 @@ class SpatialHandler(ToFileHandler, ABC):
         return f"{self.target_format}-{self.target_epsg}"
 
     @property
-    def field_ids(self):
+    def field_ids(self) -> List[str]:
         return [field["id"] for field in self.datastore_metadata["fields"]]
 
     def to_file(self, input_row_generator: Generator[Dict, None, None]):
@@ -360,7 +360,7 @@ class SpatialHandler(ToFileHandler, ABC):
         for row in row_generator:
             yield row
 
-    def save_to_file(self, row_generator: Generator[Dict, None, None]):
+    def save_to_file(self, row_generator: Generator[Dict, None, None]) -> str:
         raise NotImplementedError("to_file not implemented")
 
 
@@ -386,7 +386,7 @@ class SpatialToCsv(SpatialHandler):
             row["geometry"] = _geometry_to_json(row["geometry"])
             yield row
 
-    def save_to_file(self, row_generator):
+    def save_to_file(self, row_generator: Generator[Dict, None, None]) -> str:
         csv.field_size_limit(sys.maxsize)
         with open(self.output_filepath, "w", encoding="utf-8") as csv_file:
             writer = csv.DictWriter(csv_file, fieldnames=self.field_ids)
@@ -458,8 +458,9 @@ class SpatialToSpatial(SpatialHandler):
     def name(self) -> str:
         return f"{self.target_format}-{self.target_epsg}"
 
-    def format_row(self, row_generator: Generator[Dict, None, None]):
-        # TODO use real Properties and Feature fiona objects instead of Dicts
+    def format_row(
+        self, row_generator: Generator[Dict, None, None]
+    ) -> Generator[Dict, None, None]:
         col_map = self._get_col_map()
         for row in row_generator:
             geometry: fiona.Geometry = row["geometry"]
@@ -470,12 +471,10 @@ class SpatialToSpatial(SpatialHandler):
             yield {
                 "type": "Feature",
                 "properties": properties,
-                # "geometry": geometry,
-                # TODO maybe?
                 "geometry": dict(geometry),
             }
 
-    def save_to_file(self, row_generator):
+    def save_to_file(self, row_generator: Generator[Dict, None, None]) -> str:
         schema = self._get_schema()
         with fiona.open(
             self.output_filepath,
@@ -507,12 +506,17 @@ class SpatialToShp(SpatialToSpatial):
     #############################
 
     def _get_col_map(self) -> Dict[str, str]:
-        # TODO docs on why we truncate to 10 chars
+        # For shape files, field names are truncated to 10 characters. Fiona/GDAL will
+        # do this automatically but we prefer our own heuristic for mapping these.
+        # See: https://support.esri.com/en-us/knowledge-base/problem-field-names-are-truncated-to-ten-characters-in--000022868
         if not any(len(field) > 10 for field in self.field_ids):
             return {}
         return {field: f"{field[:7]}{i+1}" for i, field in enumerate(self.field_ids)}
 
-    def _write_fields_file(self, path):
+    def _write_fields_file(self, path: str) -> None:
+        # Since shp files have a 10 char field length limit, provide a data dictionary/
+        # field mapping file as a csv to link abbreviated column names to their full
+        # names. (see _get_col_map as well)
         col_map = self._get_col_map()
         with open(path, "w", encoding="utf-8") as fields_file:
             writer = csv.DictWriter(fields_file, fieldnames=("field", "name"))
@@ -548,7 +552,7 @@ class SpatialToShp(SpatialToSpatial):
     # Hooks                     #
     #############################
 
-    def save_to_file(self, row_generator):
+    def save_to_file(self, row_generator: Generator[Dict, None, None]) -> str:
         schema = self._get_schema()
 
         with self._temp_directory(

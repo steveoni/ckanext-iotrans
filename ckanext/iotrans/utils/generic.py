@@ -52,49 +52,6 @@ def get_filepath(dir_path, resource_name, epsg, file_format):
     )
 
 
-def write_to_json(dump_filepath, output_filepath, datastore_resource, context):
-    """Stream into a JSON file by running datastore_search over and over"""
-    # TODO why are we re-downloading instead of using the dump_filepath?
-    with codecs.open(output_filepath, "w", encoding="utf-8") as jsonfile:
-        # write starting bracket
-        jsonfile.write("[")
-
-        # grab first chunk of records
-        chunk_size = 20000
-        iteration = 0
-        data_chunk = tk.get_action("datastore_search")(
-            context,
-            {
-                "resource_id": datastore_resource["resource_id"],
-                "limit": chunk_size,
-            },
-        )
-        # as long as there is more to grab, grab the next chunk
-        while len(data_chunk["records"]):
-
-            for record in data_chunk["records"]:
-                jsonfile.write(json.dumps(record))
-                jsonfile.write(", ")
-            iteration += 1
-            data_chunk = tk.get_action("datastore_search")(
-                context,
-                {
-                    "resource_id": datastore_resource["resource_id"],
-                    "limit": chunk_size,
-                    "offset": chunk_size * iteration,
-                },
-            )
-
-    with codecs.open(output_filepath, "rb+", encoding="utf-8") as jsonfile:
-        # remove last ", "
-        jsonfile.seek(-2, 2)
-        jsonfile.truncate()
-
-    with codecs.open(output_filepath, "a", encoding="utf-8") as jsonfile:
-        # add last closing ]
-        jsonfile.write("]")
-
-
 def write_to_xml(dump_filepath, output_filepath, chunk_size=5000):
     """Stream into an XML file"""
     XML_ENCODING = "utf-8"
@@ -143,13 +100,3 @@ def iotrans_auth_function(context, data_dict=None):
             "success": False,
             "msg": "This endpoint is for authorized accounts only",
         }
-
-
-def write_to_jsonlines(dump_filepath: str, generator: Generator) -> None:
-    with open(dump_filepath, "w") as f:
-        f.writelines(f"{json.dumps(row)}\n" for row in generator)
-
-
-def json_lines_reader(file) -> Generator[Dict, None, None]:
-    for row in file:
-        yield json.loads(row)
