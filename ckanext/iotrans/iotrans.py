@@ -118,8 +118,8 @@ def to_file(context, data_dict):
     # Iterate through handlers produced by the factory. For each we run to_file
     output = {}
     for handler in handlers:
-        with open(dump_filepath, "r") as csv_file:
-            row_generator = utils.json_lines_reader(csv_file)
+        with open(dump_filepath, "r") as json_lines_file:
+            row_generator = utils.json_lines_reader(json_lines_file)
             output[handler.name()] = handler.to_file(row_generator)
     return output
 
