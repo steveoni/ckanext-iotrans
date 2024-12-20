@@ -18,9 +18,6 @@ target_formats = ["csv", "geojson"]
 @pytest.mark.usefixtures("with_request_context")
 class TestIOTransSpatial(object):
 
-    # TODO:
-    # - ensure geojson doesn't get unecessarily wrapped in Multi objects?
-
     @pytest.mark.ckan_config("ckan.plugins", "datastore iotrans")
     @pytest.mark.usefixtures("with_plugins")
     @pytest.mark.parametrize("file_format", target_formats)

@@ -350,15 +350,13 @@ class SpatialHandler(ToFileHandler, ABC):
                 from_epsg(self.source_epsg), from_epsg(self.target_epsg), geom
             )
             multi_geom = self._geom_to_multigeom(converted_geom)
-            # TODO jsonification should happen later
-            # geom_json = geometry_to_json(converted_geom)
             row["geometry"] = multi_geom
             yield row
 
     def format_row(
         self, row_generator: Generator[Dict, None, None]
     ) -> Generator[Dict, None, None]:
-        # Default implementation is identity function (not transformation/modification)
+        # Default implementation is identity function (no transformation/modification)
         for row in row_generator:
             yield row
 
@@ -405,8 +403,6 @@ class SpatialToSpatial(SpatialHandler):
 
     @staticmethod
     def _python_type_to_fiona_type(python_type: str) -> str:
-        # TODO can we replace with fiona.FIELD_TYPES_MAP
-        # See also prop_type
         ckan_to_fiona_type_map = {
             "text": "str",
             "date": "str",
@@ -424,14 +420,6 @@ class SpatialToSpatial(SpatialHandler):
         return {}
 
     def _get_schema(self) -> Dict[str, str]:
-        geom_type_map = {
-            "Point": "MultiPoint",
-            "LineString": "MultiLineString",
-            "Polygon": "MultiPolygon",
-            "MultiPoint": "MultiPoint",
-            "MultiLineString": "MultiLineString",
-            "MultiPolygon": "MultiPolygon",
-        }
         col_map = self._get_col_map()
         non_geom_fields = [
             field
@@ -447,13 +435,16 @@ class SpatialToSpatial(SpatialHandler):
         # geometry of type X gets mapped to MultiX, why?:
         # - the `schema` param to fiona.open(...) requires _one_ geometry type to be
         #   specified
-        # - this is likely because shp and gpkg (?) files only permit one type of geometry
+        # - this is likely because shp files only permit one type of geometry
         #   per collection:
         #   - shp: https://www.esri.com/content/dam/esrisites/sitecore-archive/Files/Pdfs/library/whitepapers/pdfs/shapefile.pdf
         #     "All the non-Null shapes in a shapefile are required to be of the same
         #      shape type"
-        #   - gpkg: <TODO: confirm>
-        geometry = geom_type_map[self.datastore_metadata["geometry_type"]]
+        #   - yet we may receive geojson that indeed does contain but geometries of type
+        #     'X' and MultiX (e.g. Point and MultiPoint)
+        #   - Fiona will error out in this case
+        # TODO consider circumventing this for non-shp formats.
+        geometry = self._MULTI_GEOM_MAPPING[self.datastore_metadata["geometry_type"]]
 
         return {
             "geometry": geometry,
@@ -467,7 +458,7 @@ class SpatialToSpatial(SpatialHandler):
     def name(self) -> str:
         return f"{self.target_format}-{self.target_epsg}"
 
-    def format_row(self, row_generator):
+    def format_row(self, row_generator: Generator[Dict, None, None]):
         # TODO use real Properties and Feature fiona objects instead of Dicts
         col_map = self._get_col_map()
         for row in row_generator:
