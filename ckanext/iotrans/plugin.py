@@ -25,7 +25,7 @@ class IotransPlugin(plugins.SingletonPlugin):
         @click.command()
         @click.argument('resourceid')
         @click.argument('targetformat')
-        def ioprofile(resourceid, targetformat):
+        def tofile(resourceid, targetformat):
 
             data = {
                 "resource_id": resourceid,
@@ -42,7 +42,7 @@ class IotransPlugin(plugins.SingletonPlugin):
                 click.echo(click.style(str(e), fg="red"))
                 return
 
-        return [ioprofile]
+        return [tofile]
 
     def get_actions(self):
         return {
