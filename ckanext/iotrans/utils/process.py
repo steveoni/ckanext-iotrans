@@ -21,22 +21,6 @@ from .to_file import (
 )
 
 
-def process_to_file2(context, data_dict):
-    log = logging.getLogger(__name__)
-    log.info("Starting the background job for processing to file.")
-    log.info("Context: %s", context)
-    log.info("Data Dictionary: %s", data_dict)
-    try:
-        # Simulate a delay
-        time.sleep(120)  # Sleep for 2 minutes
-        
-        log.info("Successfully processed the file.")
-        return {"status": "success"}
-    except Exception as e:
-        log.error("Error processing the file: %s", str(e))
-        return {"status": "error", "message": str(e)}
-    
-
     
 def process_to_file(context, data_dict):
     """
