@@ -2,19 +2,38 @@ import json
 from typing import Dict, Generator, Iterable
 import psycopg2
 from ckan.common import config
+from psycopg2 import sql
 
-def dump_table_to_csv(resource_id: str, output_file: str) -> None:
-    """Dumps a CKAN datastore table to a CSV file using PostgreSQL's COPY command."""
-    datastore_url = config.get(u'ckan.datastore.read_url')
-    query = f"COPY \"{resource_id}\" TO STDOUT WITH CSV HEADER"
+from decimal import Decimal
+import logging
 
-    with psycopg2.connect(datastore_url) as conn, open(output_file, "w", encoding="utf-8") as f:
+
+def dump_table_to_jsonlines(resource_id: str):
+    """Dumps a CKAN datastore table to a JSONLines file using PostgreSQL's COPY command."""
+    log = logging.getLogger(__name__)
+
+    datastore_url = config.get("ckan.datastore.read_url")
+
+    query = sql.SQL("SELECT * FROM {table_name}").format(
+        table_name=sql.Identifier(resource_id)
+    )
+
+    with psycopg2.connect(datastore_url) as conn:
         cursor = conn.cursor()
-        cursor.copy_expert(query, f)  # Writes full table to file
+        cursor.execute(query)
+
+        columns = [desc[0] for desc in cursor.description]
+
+        for row in cursor:
+            record = dict(zip(columns, row))
+            record = {
+                k: (v if not isinstance(v, Decimal) else float(v))
+                for k, v in record.items()
+            }
+
+            yield record
+
         cursor.close()
-
-  
-
 
 
 def write_to_jsonlines(dump_filepath: str, rows: Iterable) -> None:

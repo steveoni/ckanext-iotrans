@@ -21,7 +21,6 @@ from .to_file import (
 )
 
 
-    
 def process_to_file(context, data_dict):
     """
     inputs:
@@ -87,14 +86,15 @@ def process_to_file(context, data_dict):
         data_dict.get("source_epsg", None),
         "jsonlines",
     )
-    
-    json_lines.dump_table_to_csv(data.resource_id, dump_filepath)
+    generator = json_lines.dump_table_to_jsonlines(data.resource_id)
+    json_lines.write_to_jsonlines(dump_filepath, generator)
 
     geometry_type = (
         json.loads(datastore_resource["records"][0]["geometry"])["type"]
         if is_spatial
         else None
     )
+
     datastore_metadata: DatastoreResourceMetadata = {
         "fields": datastore_resource["fields"],
         "geometry_type": geometry_type,

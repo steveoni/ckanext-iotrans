@@ -25,15 +25,18 @@ from ckan.lib.jobs import enqueue
 from ckan.plugins.toolkit import enqueue_job
 from ckanext.iotrans.utils.process import process_to_file
 
+
 @tk.side_effect_free
 def to_file(context, data_dict):
     """
     Enqueue a background job to process the `to_file` task.
     """
-    job = enqueue_job(process_to_file, [context, 
-                                        data_dict],
-                                        title=f"To_file trannsformtion-{data_dict.get('resource_id')}",
-                                        rq_kwargs={"timeout": 18000})
+    job = enqueue_job(
+        process_to_file,
+        [context, data_dict],
+        title=f"To_file trannsformtion-{data_dict.get('resource_id')}",
+        rq_kwargs={"timeout": 18000},
+    )
     return {"job_id": job.id, "status": "queued"}
 
 
